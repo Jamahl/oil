@@ -497,19 +497,21 @@ function botConfigForm(c) {
     `<select data-bk="${name}">${opts.map((o) => `<option value="${o[0]}" ${o[0] === String(cur) ? 'selected' : ''}>${o[1]}</option>`).join('')}</select>`;
   const num = (name, cur, step = 'any') => `<input data-bk="${name}" type="number" step="${step}" value="${cur}">`;
   return `<div class="bot-grid">
+    <span><label>Trade size (barrels)</label>${num('positionSize', c.positionSize, '0.1')}</span>
+    <span><label>Take profit ($/barrel)</label>${num('tpValue', c.tpValue, '0.01')}</span>
+    <span><label>Stop loss ($/barrel)</label>${num('slValue', c.slValue, '0.01')}</span>
+    <span><label>Max trades at once</label>${num('maxOpenTrades', c.maxOpenTrades, '1')}</span>
+    <span><label>&nbsp;</label><button id="bot-save" class="btn small">Save</button></span>
+  </div>
+  <details><summary class="note" style="cursor:pointer">Advanced</summary><div class="bot-grid">
     <span><label>Sizing</label>${sel('sizeMode', [['fixed', 'fixed size'], ['risk', 'risk amount']], c.sizeMode)}</span>
-    <span><label>Size (barrels)</label>${num('positionSize', c.positionSize, '0.1')}</span>
     <span><label>Risk $ / trade</label>${num('riskAmount', c.riskAmount, '1')}</span>
-    <span><label>Profit take</label>${sel('tpMode', [['usd', '$ per barrel'], ['pct', '% of price']], c.tpMode)}</span>
-    <span><label>TP value</label>${num('tpValue', c.tpValue, '0.01')}</span>
-    <span><label>Stop loss</label>${sel('slMode', [['usd', '$ per barrel'], ['pct', '% of price']], c.slMode)}</span>
-    <span><label>SL value</label>${num('slValue', c.slValue, '0.01')}</span>
-    <span><label>Max open trades</label>${num('maxOpenTrades', c.maxOpenTrades, '1')}</span>
-    <span><label>Cooldown (sec)</label>${num('cooldownSec', c.cooldownSec, '15')}</span>
-    <span><label>Min signal conviction</label>${sel('minConfidence', [['Lean', 'Lean'], ['Moderate', 'Moderate'], ['Strong', 'Strong']], c.minConfidence)}</span>
-    <span><label>Daily loss cap $</label>${num('dailyLossCap', c.dailyLossCap, '10')}</span>
-    <span><label>&nbsp;</label><button id="bot-save" class="btn small">Save config</button></span>
-  </div>`;
+    <span><label>TP unit</label>${sel('tpMode', [['usd', '$ per barrel'], ['pct', '% of price']], c.tpMode)}</span>
+    <span><label>SL unit</label>${sel('slMode', [['usd', '$ per barrel'], ['pct', '% of price']], c.slMode)}</span>
+    <span><label>Pause between trades (sec)</label>${num('cooldownSec', c.cooldownSec, '15')}</span>
+    <span><label>Min signal strength</label>${sel('minConfidence', [['Lean', 'Lean'], ['Moderate', 'Moderate'], ['Strong', 'Strong']], c.minConfidence)}</span>
+    <span><label>Stop for the day after losing $</label>${num('dailyLossCap', c.dailyLossCap, '10')}</span>
+  </div></details>`;
 }
 
 async function pollBot() {
