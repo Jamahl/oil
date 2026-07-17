@@ -518,6 +518,8 @@ function botConfigForm(c) {
     <span><label>SL unit</label>${sel('slMode', [['usd', '$ per barrel'], ['pct', '% of price']], c.slMode)}</span>
     <span><label>Pause between trades (sec)</label>${num('cooldownSec', c.cooldownSec, '15')}</span>
     <span><label>Min signal strength</label>${sel('minConfidence', [['Lean', 'Lean'], ['Moderate', 'Moderate'], ['Strong', 'Strong']], c.minConfidence)}</span>
+    <span><label>Runner on hot momentum</label>${sel('runnerEnabled', [['true','on'],['false','off']], String(c.runnerEnabled))}</span>
+    <span><label>Momentum trigger (0-1)</label>${num('runnerMomentum', c.runnerMomentum, '0.05')}</span>
     <span><label>Stop for the day after losing $</label>${num('dailyLossCap', c.dailyLossCap, '10')}</span>
   </div></details>`;
 }
@@ -533,7 +535,7 @@ async function pollBot() {
     $('bot-stop').hidden = !b.running;
 
     const openRows = b.open
-      .map((t) => `<tr><td>${t.dir}</td><td>${t.size}</td><td>$${t.entry.toFixed(2)}</td><td>$${t.sl.toFixed(2)}</td><td>$${t.tp.toFixed(2)}</td><td class="${t.livePnl > 0 ? 'good' : t.livePnl < 0 ? 'bad' : ''}">${t.livePnl == null ? '—' : '$' + t.livePnl.toFixed(2)}</td></tr>`)
+      .map((t) => `<tr><td>${t.dir}${t.kind && t.kind !== 'solo' ? ' · ' + t.kind : ''}</td><td>${t.size}</td><td>$${t.entry.toFixed(2)}</td><td>$${t.sl.toFixed(2)}</td><td>$${t.tp.toFixed(2)}</td><td class="${t.livePnl > 0 ? 'good' : t.livePnl < 0 ? 'bad' : ''}">${t.livePnl == null ? '—' : '$' + t.livePnl.toFixed(2)}</td></tr>`)
       .join('');
     const openHdr = '<div class="jlabel" style="margin-top:8px">● Open positions — live, not yet closed</div>';
     const openTable = b.open.length
@@ -571,7 +573,7 @@ async function pollBot() {
           const patch = {};
           document.querySelectorAll('#bot-body [data-bk]').forEach((el) => {
             const v = el.type === 'number' ? Number(el.value) : el.value;
-            patch[el.dataset.bk] = v;
+            patch[el.dataset.bk] = el.dataset.bk === 'runnerEnabled' ? v === 'true' : v;
           });
           const r = await fetch('/api/bot/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) });
           const j = await r.json();
