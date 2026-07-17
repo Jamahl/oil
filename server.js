@@ -7,9 +7,10 @@ const express = require('express');
 const { yahooDaily, yahooSeries, eiaCrudeStocks, clearCache } = require('./lib/fetchers');
 const { buildDataset, buildIntradayRows, recentVol, pearson } = require('./lib/data');
 const { fetchNews, newsBandFactor } = require('./lib/news');
-const { DEFAULT_MODEL } = require('./lib/llm');
+const { DEFAULT_MODEL, chatText } = require('./lib/llm');
 const { buildTargets } = require('./lib/targets');
 const capital = require('./lib/capital');
+const journal = require('./lib/journal');
 
 const PORT = process.env.PORT || 4173;
 const app = express();
@@ -237,6 +238,7 @@ app.get('/api/dashboard', async (req, res) => {
       vols: { bar15: vols.bar15 || 0.002, bar60: vols.bar60 || 0.004, daily: vols.daily },
       newsLevel: news.activity.level,
       bandFactor: newsBandFactor(news.activity.level),
+      calibration: journalCalib,
     });
 
     const tail = 504;
@@ -307,6 +309,104 @@ app.post('/api/refresh', async (req, res) => {
   }
 });
 
+/* ---------- prediction journal: the self-calibrating loop ---------- */
+
+let journalCalib = {}; // populated by the first tick (storage may be remote)
+let ticking = false;
+
+// Price history the resolver can score against when the server was down at a
+// prediction's due time: 15m bars (60d) + daily closes (10y, ~20:00Z settle).
+function resolverFallbackSeries() {
+  const { raw, ds } = state.data;
+  const pts = [];
+  if (raw.i15) for (let i = 0; i < raw.i15.dates.length; i++) pts.push([Date.parse(raw.i15.dates[i]), raw.i15.close[i]]);
+  for (let i = 0; i < ds.dates.length; i++) pts.push([Date.parse(ds.dates[i] + 'T20:00:00Z'), ds.brent[i]]);
+  pts.sort((a, b) => a[0] - b[0]);
+  return { ts: pts.map((p) => p[0]), close: pts.map((p) => p[1]) };
+}
+
+// Every 5 min: log spot, resolve matured predictions, refresh calibration, and
+// log the system's CURRENT predictions (always the ridge system, so the journal
+// measures one consistent policy regardless of what the UI toggle shows).
+async function journalTick() {
+  if (ticking) return;
+  ticking = true;
+  try {
+    await loadData();
+    let spot = null;
+    let src = 'yahoo';
+    if (capital.configured()) {
+      try {
+        const s = await capital.snapshot('brent');
+        spot = s.mid;
+        src = 'capital';
+      } catch (e) {
+        console.error('journal spot failed:', e.message);
+      }
+    }
+    const { raw, ds, vols } = state.data;
+    if (spot == null) spot = raw.i15 ? raw.i15.close[raw.i15.close.length - 1] : ds.brent[ds.brent.length - 1];
+    await journal.logPrice(Date.now(), spot, src);
+
+    const outcome = await journal.resolveDue(resolverFallbackSeries());
+    journalCalib = await journal.computeCalibration();
+
+    const [h1, h5, h21, i15, i60] = await Promise.all([
+      dailyBundle('ridge', 'fwd1'),
+      dailyBundle('ridge', 'fwd5'),
+      dailyBundle('ridge', 'fwd21'),
+      intradayBundle('i15', '15m', 400),
+      intradayBundle('i60', '1h', 800),
+    ]);
+    const news = raw.news || { activity: { level: 'QUIET' } };
+    const targets = buildTargets({
+      price: spot,
+      asOfDaily: ds.dates[ds.dates.length - 1],
+      asOf15: raw.i15 ? raw.i15.dates[raw.i15.dates.length - 1] : null,
+      asOf60: raw.i60 ? raw.i60.dates[raw.i60.dates.length - 1] : null,
+      bundles: { h1, h5, h21, i15, i60 },
+      vols: { bar15: vols.bar15 || 0.002, bar60: vols.bar60 || 0.004, daily: vols.daily },
+      newsLevel: news.activity.level,
+      bandFactor: newsBandFactor(news.activity.level),
+      calibration: journalCalib,
+    });
+    const logged = await journal.logPredictions(targets, spot, 'ridge', news.activity.level);
+    if (logged || outcome.resolved || outcome.unresolvable) {
+      console.log(`journal: +${logged} logged, ${outcome.resolved} resolved, ${outcome.unresolvable} unresolvable, ${outcome.stillOpen} awaiting price`);
+    }
+  } catch (e) {
+    console.error('journal tick failed:', e.message);
+  } finally {
+    ticking = false;
+  }
+}
+
+app.get('/api/journal', async (req, res) => {
+  try {
+    res.json({ stats: await journal.stats(), calibration: journalCalib, horizons: journal.HORIZONS, storage: await journal.storageKind() });
+  } catch (e) {
+    res.status(500).json({ error: String(e.message || e) });
+  }
+});
+
+// On-demand AI review of the journal: what is failing, what to fix first.
+app.get('/api/journal/insight', async (req, res) => {
+  try {
+    const s = journal.stats();
+    const prompt = [
+      'You are a quant reviewing LIVE prediction-journal stats for a Brent price-target system.',
+      'Per horizon: dirHitRate vs baseUp (direction skill), bandCoverage (target 0.68), meanErr (bias), mae, n counts, leanVerdict.',
+      `DATA: ${JSON.stringify({ horizons: s.horizons, calibration: journalCalib })}`,
+      'Write markdown, <=200 words: 1) per-horizon one-liners — working / broken / too little data (cite the numbers); 2) "Fix first:" the three highest-impact concrete improvements, ordered. No hedging boilerplate, no praise.',
+    ].join('\n');
+    const out = await chatText(prompt, config.newsModel, process.env.OPENROUTER_API_KEY || '');
+    if (!out.ok) return res.status(502).json({ error: out.reason });
+    res.json({ markdown: out.text, model: config.newsModel });
+  } catch (e) {
+    res.status(500).json({ error: String(e.message || e) });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`CrudeSignal Lab -> http://localhost:${PORT}`);
   loadData()
@@ -319,6 +419,10 @@ app.listen(PORT, () => {
         intradayBundle('i60', '1h', 800),
       ])
     )
-    .then(() => console.log('ridge + intraday models warm'))
+    .then(() => {
+      console.log('ridge + intraday models warm');
+      journalTick(); // first journal entry immediately, then every 5 min
+      setInterval(journalTick, 5 * 60 * 1000);
+    })
     .catch((e) => console.error('warmup failed:', e.message));
 });

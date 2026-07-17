@@ -580,6 +580,62 @@ function setStatus(msg, isError = false) {
   el.classList.toggle('error', isError);
 }
 
+/* --- prediction journal --- */
+const HZ_LABELS = { m15: '15 min', h1: '1 hour', d1: '1 day', w1: '1 week', mo1: '1 month' };
+
+async function loadJournal() {
+  try {
+    const j = await (await fetch('/api/journal')).json();
+    if (j.error) throw new Error(j.error);
+    const rows = Object.entries(j.stats.horizons)
+      .map(([hz, s]) => {
+        const cal = j.calibration[hz] || { k: 1, bias: 0, active: false, n: 0 };
+        const calTxt = cal.active
+          ? `k=${cal.k.toFixed(2)} bias=${fmt.pct(cal.bias, 3)} <span class="good">active</span>`
+          : `k=${(cal.k || 1).toFixed(2)} <span class="news-tags">shadow (n=${cal.n})</span>`;
+        const cover = s.bandCoverage == null ? '—' : fmt.pct0(s.bandCoverage);
+        const coverCls = s.bandCoverage == null ? '' : Math.abs(s.bandCoverage - 0.68) <= 0.07 ? 'good' : 'bad';
+        return `<tr>
+          <td>${HZ_LABELS[hz] || hz}</td>
+          <td>${s.resolved}<div class="note">${s.open} open</div></td>
+          <td>${s.dirHitRate == null ? '—' : fmt.pct0(s.dirHitRate)} <span class="note">vs ${s.baseUp == null ? '—' : fmt.pct0(Math.max(s.baseUp, 1 - s.baseUp))}</span></td>
+          <td class="${coverCls}">${cover} <span class="note">→68%</span></td>
+          <td>${s.meanErr == null ? '—' : fmt.pct(s.meanErr, 3)}</td>
+          <td>${calTxt}</td>
+          <td>${s.leanVerdict}</td>
+        </tr>`;
+      })
+      .join('');
+    $('journal-body').innerHTML = `<table class="bt">
+      <thead><tr><th>Horizon</th><th>Resolved</th><th>Direction hit</th><th>Band coverage</th><th>Bias</th><th>Calibration</th><th>Lean verdict</th></tr></thead>
+      <tbody>${rows}</tbody></table>`;
+    $('journal-meta').textContent = `${j.stats.totals.resolved} resolved · ${j.stats.totals.open} open · ${j.stats.totals.unresolvable} unresolvable · storage: ${j.storage === 'neon' ? 'Neon Postgres' : 'local SQLite'} · logs every 5 min while the server runs`;
+  } catch (e) {
+    $('journal-body').innerHTML = `<p class="note">Journal unavailable: ${e.message}</p>`;
+  }
+}
+
+$('btn-insight').addEventListener('click', async () => {
+  const btn = $('btn-insight');
+  const out = $('insight-out');
+  btn.disabled = true;
+  out.hidden = false;
+  out.textContent = 'Reviewing journal stats with the configured model…';
+  try {
+    const r = await (await fetch('/api/journal/insight')).json();
+    if (r.error) throw new Error(r.error);
+    out.innerHTML = escapeHtml(r.markdown)
+      .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+      .replace(/^###?\s?(.+)$/gm, '<b>$1</b>')
+      .replace(/^[-*]\s/gm, '• ')
+      .replace(/\n/g, '<br>');
+  } catch (e) {
+    out.textContent = 'Insight failed: ' + e.message;
+  } finally {
+    btn.disabled = false;
+  }
+});
+
 async function load(model) {
   currentModel = model;
   document.querySelectorAll('.seg-btn').forEach((b) => b.classList.toggle('active', b.dataset.model === model));
@@ -591,10 +647,13 @@ async function load(model) {
     lastData = json;
     renderAll(json);
     setStatus(null);
+    loadJournal();
   } catch (e) {
     setStatus('Failed: ' + e.message + ' — is a feed down? Retry or check server logs.', true);
   }
 }
+
+setInterval(loadJournal, 5 * 60 * 1000);
 
 document.querySelectorAll('.seg-btn').forEach((b) => b.addEventListener('click', () => load(b.dataset.model)));
 

@@ -1,4 +1,9 @@
 /* CrudeSignal Lab — tokens per the reference dataviz palette (light + dark selected). */
+/* (journal card) */
+#journal-card { margin-bottom: 16px; }
+#journal-card table.bt td, #journal-card table.bt th { white-space: nowrap; }
+#journal-card { overflow-x: auto; }
+.journal-foot { display: flex; align-items: center; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
 :root {
   --page: #f9f9f7;
   --surface-1: #fcfcfb;
