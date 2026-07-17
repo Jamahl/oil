@@ -107,13 +107,18 @@ function renderTargets(d, liveSpot) {
         t.direction === 'FLAT'
           ? '— no lean'
           : `${t.direction === 'BULLISH' ? '▲ leans up' : '▼ leans down'}${t.bucket ? ' · ' + t.bucket : ''}`;
-      const hit = t.bucketHit ? ` <span title="how often this conviction bucket was right out-of-sample">(${fmt.pct0(t.bucketHit.hitRate)} hist.)</span>` : '';
+      const leanTitle = t.bucketHit
+        ? `this conviction bucket was right ${fmt.pct0(t.bucketHit.hitRate)} of the time out-of-sample (n=${t.bucketHit.n})`
+        : 'historical hit rate appears once enough predictions are scored';
+      // Only a REAL edge earns a line on the card — the shared note below the row
+      // already carries the near-coin-flip disclaimer once, not six times.
+      const edgeLine = t.edge.cls !== 'none' ? `<div class="edge">${t.edge.label}</div>` : '';
       return `<div class="target">
         <div class="when">in ${t.label}</div>
         <div class="tgt">${fmt.usd(t.target)}</div>
         <div class="range">${fmt.usd(t.low)} – ${fmt.usd(t.high)}</div>
-        <span class="lean ${leanCls}">${leanTxt}</span>${hit ? `<div class="edge">${hit}</div>` : ''}
-        <div class="edge">${t.edge.label}</div>
+        <span class="lean ${leanCls}" title="${leanTitle}">${leanTxt}</span>
+        ${edgeLine}
       </div>`;
     })
     .join('');
