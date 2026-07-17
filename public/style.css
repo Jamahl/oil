@@ -168,7 +168,8 @@ h1 span { color: var(--series-1); }
 .live-badge.live { color: var(--delta-up); }
 
 /* --- news --- */
-.grid-news { display: grid; grid-template-columns: 1.2fr 1fr; gap: 10px; align-items: start; }
+.grid-news { display: grid; grid-template-columns: 1.2fr 1fr; gap: 10px; align-items: stretch; }
+.grid-news .chart-box { height: 620px; }
 #news-list { max-height: 600px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; padding-right: 4px; }
 .news-item { display: flex; gap: 10px; padding: 9px 6px; margin: 0 -6px; border-radius: 8px; border-bottom: 1px solid var(--grid); align-items: flex-start; }
 .news-item:hover { background: color-mix(in srgb, var(--text-primary) 3%, transparent); }
