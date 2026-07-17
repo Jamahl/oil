@@ -53,6 +53,7 @@
 }
 
 * { box-sizing: border-box; }
+:focus-visible { outline: 2px solid var(--series-1); outline-offset: 2px; border-radius: 4px; }
 html, body { margin: 0; padding: 0; }
 html { font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
 body {
