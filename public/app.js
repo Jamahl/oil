@@ -316,7 +316,7 @@ function setStatus(msg, isError = false) {
 }
 
 /* --- prediction journal (plain-language scoreboard) --- */
-const HZ_LABELS = { m15: '15-minute', h1: '1-hour', d1: '1-day', w1: '1-week', mo1: '1-month' };
+const HZ_LABELS = { m15: '15-minute', m30: '30-minute', h1: '1-hour', d1: '1-day', w1: '1-week', mo1: '1-month' };
 
 function rangeQuality(cov, resolved, cal, minN) {
   if (cov == null || resolved < 5) return { txt: 'not enough scored yet', cls: '' };
@@ -558,11 +558,48 @@ async function pollPrice() {
       deltaEl.textContent = `${up ? '▲' : '▼'} ${up ? '+' : ''}${p.pctChange.toFixed(2)}% today`;
     }
     renderTargets(lastData, liveSpot); // re-anchor target prices on the live spot
+    renderScalp(p);
   } catch {
     /* next tick */
   }
 }
 setInterval(pollPrice, 5000);
+
+// Scalper's viability check: is the typical short-horizon move big enough to
+// pay the round-trip spread? Updates with every live tick.
+function renderScalp(p) {
+  const el = $('scalp');
+  if (!el || !lastData) return;
+  const t15 = lastData.targets.find((t) => t.id === 'm15');
+  const t30 = lastData.targets.find((t) => t.id === 'm30');
+  if (!t15) {
+    el.hidden = true;
+    return;
+  }
+  const live = p.source === 'capital-cfd' && p.bid != null && p.offer != null;
+  const spot = p.mid;
+  const range15 = spot * t15.bandPct;
+  const range30 = t30 ? spot * t30.bandPct : null;
+  const spread = live ? p.offer - p.bid : null;
+  const ratio = spread > 0 ? range15 / spread : null;
+  const verdict =
+    ratio == null
+      ? { cls: '', txt: 'live spread unavailable (delayed feed)' }
+      : ratio >= 8
+        ? { cls: 'good', txt: `good — typical move is ${ratio.toFixed(0)}× the spread` }
+        : ratio >= 4
+          ? { cls: 'ok', txt: `workable — move is ${ratio.toFixed(0)}× the spread` }
+          : { cls: 'poor', txt: 'poor — the spread eats the typical move' };
+  const tape = lastData.news.activity.level;
+  el.hidden = false;
+  el.innerHTML = `
+    <span><span class="slabel">Scalp conditions</span><span class="scalp-verdict ${verdict.cls}">${verdict.txt}</span></span>
+    <span><span class="slabel">CFD spread (your cost)</span><span class="sval">${spread != null ? '$' + spread.toFixed(3) : '—'}</span></span>
+    <span><span class="slabel">Typical 15m move (±1σ)</span><span class="sval">±$${range15.toFixed(2)}</span></span>
+    ${range30 != null ? `<span><span class="slabel">Typical 30m move</span><span class="sval">±$${range30.toFixed(2)}</span></span>` : ''}
+    <span><span class="slabel">Move ÷ spread</span><span class="sval">${ratio != null ? ratio.toFixed(1) + '×' : '—'}</span></span>
+    ${tape !== 'QUIET' ? `<span class="note">⚠ ${tape} tape — headline jumps, slippage risk on tight stops</span>` : ''}`;
+}
 
 initConfig();
 load('ridge').then(pollPrice);

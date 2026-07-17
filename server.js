@@ -135,12 +135,24 @@ function dailyBundle(kind, horizonKey) {
   );
 }
 
-function intradayBundle(id, label, step) {
+function intradayBundle(id, label, step, horizonKey = 'fwd1') {
   const rowsBundle = state.data.intraday[id];
   if (!rowsBundle || rowsBundle.rows.length < 500) return Promise.resolve(null);
-  return getModelBundle(`ridge:${id}`, () =>
-    runWorker(rowsBundle, 'ridge', 'fwd1', { step, lite: true, label })
+  return getModelBundle(`ridge:${id}:${horizonKey}`, () =>
+    runWorker(rowsBundle, 'ridge', horizonKey, { step, lite: true, label })
   );
+}
+
+// The five bundles every consumer needs (dashboard, tick, signal) — all cached.
+function coreBundles(kind) {
+  return Promise.all([
+    dailyBundle(kind, 'fwd1'),
+    dailyBundle(kind, 'fwd5'),
+    dailyBundle(kind, 'fwd21'),
+    intradayBundle('i15', '15m', 400),
+    intradayBundle('i15', '30m', 400, 'fwd2'),
+    intradayBundle('i60', '1h', 800),
+  ]);
 }
 
 // Live spot with a short memo so a polling browser costs one upstream call
@@ -185,12 +197,7 @@ app.get('/api/price', async (req, res) => {
 let journalStatsCache = null;
 async function currentSignal() {
   await loadData();
-  const [h1, h5, i15, i60] = await Promise.all([
-    dailyBundle('ridge', 'fwd1'),
-    dailyBundle('ridge', 'fwd5'),
-    intradayBundle('i15', '15m', 400),
-    intradayBundle('i60', '1h', 800),
-  ]);
+  const [h1, h5, , i15, , i60] = await coreBundles('ridge');
   const { raw, vols } = state.data;
   const live = await getLiveSpot();
   const bars = raw.i15 ? raw.i15.close : [];
@@ -266,13 +273,7 @@ app.get('/api/dashboard', async (req, res) => {
     const kind = req.query.model === 'forest' ? 'forest' : 'ridge';
     await loadData();
     await freshNews(); // dashboard always ships a tape ≤5 min old
-    const [h1, h5, h21, i15, i60] = await Promise.all([
-      dailyBundle(kind, 'fwd1'),
-      dailyBundle(kind, 'fwd5'),
-      dailyBundle(kind, 'fwd21'),
-      intradayBundle('i15', '15m', 400),
-      intradayBundle('i60', '1h', 800),
-    ]);
+    const [h1, h5, h21, i15, i15f2, i60] = await coreBundles(kind);
     const { ds, raw, intraday, vols, health, builtAt } = state.data;
 
     const lastIdx = ds.dates.length - 1;
@@ -291,7 +292,7 @@ app.get('/api/dashboard', async (req, res) => {
       asOfDaily: ds.dates[lastIdx],
       asOf15,
       asOf60,
-      bundles: { h1, h5, h21, i15, i60 },
+      bundles: { h1, h5, h21, i15, i15f2, i60 },
       vols: { bar15: vols.bar15 || 0.002, bar60: vols.bar60 || 0.004, daily: vols.daily },
       newsLevel: news.activity.level,
       bandFactor: newsBandFactor(news.activity.level),
@@ -338,7 +339,7 @@ app.get('/api/dashboard', async (req, res) => {
           : null,
       },
       correlations,
-      models: { h1, h5, h21, i15, i60 },
+      models: { h1, h5, h21, i15, i15f2, i60 },
       sampleInfo: {
         rows: ds.rows.length,
         firstDate: ds.rows[0].date,
@@ -412,20 +413,14 @@ async function journalTick() {
     journalCalib = await journal.computeCalibration();
     journalStatsCache = await journal.stats();
 
-    const [h1, h5, h21, i15, i60] = await Promise.all([
-      dailyBundle('ridge', 'fwd1'),
-      dailyBundle('ridge', 'fwd5'),
-      dailyBundle('ridge', 'fwd21'),
-      intradayBundle('i15', '15m', 400),
-      intradayBundle('i60', '1h', 800),
-    ]);
+    const [h1, h5, h21, i15, i15f2, i60] = await coreBundles('ridge');
     const news = raw.news || { activity: { level: 'QUIET' } };
     const targets = buildTargets({
       price: spot,
       asOfDaily: ds.dates[ds.dates.length - 1],
       asOf15: raw.i15 ? raw.i15.dates[raw.i15.dates.length - 1] : null,
       asOf60: raw.i60 ? raw.i60.dates[raw.i60.dates.length - 1] : null,
-      bundles: { h1, h5, h21, i15, i60 },
+      bundles: { h1, h5, h21, i15, i15f2, i60 },
       vols: { bar15: vols.bar15 || 0.002, bar60: vols.bar60 || 0.004, daily: vols.daily },
       newsLevel: news.activity.level,
       bandFactor: newsBandFactor(news.activity.level),
@@ -483,13 +478,7 @@ app.listen(PORT, () => {
   console.log(`CrudeSignal Lab -> http://localhost:${PORT}`);
   loadData()
     .then(() =>
-      Promise.all([
-        dailyBundle('ridge', 'fwd1'),
-        dailyBundle('ridge', 'fwd5'),
-        dailyBundle('ridge', 'fwd21'),
-        intradayBundle('i15', '15m', 400),
-        intradayBundle('i60', '1h', 800),
-      ])
+      coreBundles('ridge')
     )
     .then(() => {
       console.log('ridge + intraday models warm');

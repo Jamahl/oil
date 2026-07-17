@@ -125,7 +125,7 @@ h1 span { color: var(--series-1); }
 .hero-state p { margin: 8px 0 0; color: var(--text-secondary); font-size: 13px; }
 
 /* --- target cards --- */
-.targets-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+.targets-row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
 .target { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
 .target .when { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
 .target .tgt { font-size: 24px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
@@ -240,3 +240,12 @@ table.bt tr:last-child td { border-bottom: 0; }
 .method p, .method li { color: var(--text-secondary); font-size: 13px; }
 .method ul { margin: 6px 0; padding-left: 20px; }
 .method code { background: color-mix(in srgb, var(--surface-1) 70%, var(--text-primary) 8%); padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+
+/* --- scalp conditions strip --- */
+.scalp-strip { display: flex; gap: 18px; flex-wrap: wrap; align-items: center; background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 10px 16px; margin: 0 0 16px; font-size: 13px; font-variant-numeric: tabular-nums; }
+.scalp-strip .slabel { font-size: 10.5px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); display: block; }
+.scalp-strip .sval { font-weight: 650; }
+.scalp-verdict { border-radius: 999px; padding: 3px 10px; font-size: 12px; font-weight: 600; border: 1px solid var(--border); }
+.scalp-verdict.good { color: var(--delta-up); border-color: color-mix(in srgb, var(--delta-up) 45%, transparent); }
+.scalp-verdict.ok { color: color-mix(in srgb, var(--chip-warn) 70%, var(--text-primary)); }
+.scalp-verdict.poor { color: var(--delta-down); border-color: color-mix(in srgb, var(--delta-down) 45%, transparent); }
