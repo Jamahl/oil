@@ -537,7 +537,7 @@ async function pollBot() {
     const openRows = b.open
       .map(
         (t) =>
-          `<tr><td>${t.dir}${t.kind && t.kind !== 'solo' ? ' · ' + t.kind : ''}</td><td>${t.size}</td><td>$${t.entry.toFixed(2)}</td><td>$${t.sl.toFixed(2)}</td><td>${t.tp == null ? 'trailing' : '$' + t.tp.toFixed(2)}</td><td class="${t.livePnl > 0 ? 'good' : t.livePnl < 0 ? 'bad' : ''}">${t.livePnl == null ? '—' : '$' + t.livePnl.toFixed(2)}</td><td><button class="xclose" data-deal="${t.dealId}" title="close this position now">×</button></td></tr>`
+          `<tr><td>${t.env === 'live' ? '<span class="envtag real">REAL</span> ' : '<span class="envtag">demo</span> '}${t.dir}${t.kind && t.kind !== 'solo' ? ' · ' + t.kind : ''}</td><td>${t.size}</td><td>$${t.entry.toFixed(2)}</td><td>$${t.sl.toFixed(2)}</td><td>${t.tp == null ? 'trailing' : '$' + t.tp.toFixed(2)}</td><td class="${t.livePnl > 0 ? 'good' : t.livePnl < 0 ? 'bad' : ''}">${t.livePnl == null ? '—' : '$' + t.livePnl.toFixed(2)}</td><td><button class="xclose" data-deal="${t.dealId}" title="close this position now">×</button></td></tr>`
       )
       .join('');
     const openHdr = '<div class="jlabel" style="margin-top:8px">● Open positions — live, not yet closed</div>';
@@ -556,7 +556,7 @@ async function pollBot() {
 
     const closedTable = b.closed.length
       ? `<table class="bt"><thead><tr><th>Closed</th><th>Dir</th><th>Size</th><th>Entry</th><th>Exit</th><th>P/L</th><th>Why</th></tr></thead><tbody>${b.closed
-          .map((t) => `<tr><td>${new Date(t.closedAt).toLocaleTimeString()}</td><td>${t.dir}</td><td>${t.size}</td><td>$${t.entry.toFixed(2)}</td><td>$${t.exit.toFixed(2)}</td><td class="${t.pnl > 0 ? 'good' : 'bad'}">$${t.pnl.toFixed(2)}</td><td class="note">${escapeHtml(t.reason || '')}</td></tr>`)
+          .map((t) => `<tr><td>${new Date(t.closedAt).toLocaleTimeString()}</td><td>${t.env === 'live' ? '<span class="envtag real">REAL</span> ' : ''}${t.dir}</td><td>${t.size}</td><td>$${t.entry.toFixed(2)}</td><td>$${t.exit.toFixed(2)}</td><td class="${t.pnl > 0 ? 'good' : 'bad'}">$${t.pnl.toFixed(2)}</td><td class="note">${escapeHtml(t.reason || '')}</td></tr>`)
           .join('')}</tbody></table>`
       : '';
     if (!botEditing) {
