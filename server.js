@@ -459,7 +459,7 @@ app.get('/api/journal', async (req, res) => {
 // On-demand AI review of the journal: what is failing, what to fix first.
 app.get('/api/journal/insight', async (req, res) => {
   try {
-    const s = journal.stats();
+    const s = await journal.stats();
     const prompt = [
       'You are a quant reviewing LIVE prediction-journal stats for a Brent price-target system.',
       'Per horizon: dirHitRate vs baseUp (direction skill), bandCoverage (target 0.68), meanErr (bias), mae, n counts, leanVerdict.',
