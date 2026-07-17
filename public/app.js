@@ -1,6 +1,6 @@
 'use strict';
-/* CrudeSignal Lab frontend — simple view first (price, targets, news, fundamentals),
-   full model lab behind the Advanced fold. Chart tokens follow the dataviz method. */
+/* CrudeSignal Lab frontend — price, signal, targets, news, fundamentals, journal.
+   Chart tokens follow the dataviz method. */
 
 const $ = (id) => document.getElementById(id);
 const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -8,7 +8,6 @@ const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyV
 const charts = {};
 let lastData = null;
 let currentModel = 'ridge';
-let advRendered = false;
 
 const fmt = {
   usd: (v, dp = 2) => (v == null ? '—' : '$' + v.toFixed(dp)),
@@ -281,244 +280,6 @@ function renderDataChip(d) {
   el.innerHTML = `<span class="dot"></span>${bad ? bad + ' feed(s) down' : stale ? stale + ' feed(s) stale' : 'data OK'}`;
 }
 
-/* ================= advanced view ================= */
-
-function biasCard(el, m, horizonLabel) {
-  const p = m.prediction;
-  const bt = m.backtest;
-  const neutral = p.direction === 'NEUTRAL';
-  const dirCls = neutral ? 'flat' : p.direction === 'BULLISH' ? 'bull' : 'bear';
-  const dirWord = neutral ? 'NO EDGE — FLAT' : p.direction;
-  let calLine = '';
-  if (!neutral && m.bucketStats) {
-    const b = m.bucketStats.find((x) => x.name === p.bucket);
-    calLine = b && b.n >= 20 ? `backtest ${p.bucket}: ${fmt.pct0(b.hitRate)} hit (n=${b.n})` : 'bucket too thin to calibrate';
-  }
-  let honesty = '';
-  if (bt && bt.hitRate <= bt.baseRateUp + 0.02) {
-    honesty = `<div class="cal">⚠ OOS hit ${fmt.pct0(bt.hitRate)} vs ${fmt.pct0(bt.baseRateUp)} base — no proven edge; read as context, not a trade signal.</div>`;
-  }
-  el.innerHTML = `
-    <div class="horizon">${horizonLabel} bias · as of ${m.asOfDate} · ${m.kind === 'ridge' ? 'ridge' : 'random forest'}</div>
-    <div class="dir ${dirCls}">${dirWord}</div>
-    <div class="exp">expected ${horizonLabel} return: ${fmt.pct(p.expectedReturn)}</div>
-    <span class="bucket">${neutral ? `inside dead zone (±${fmt.pct0(p.deadZone)})` : `${p.bucket} conviction`}</span>
-    ${calLine ? `<div class="cal">${calLine}</div>` : ''}
-    ${honesty}`;
-}
-
-function renderDrivers(d) {
-  const m = d.models.h5;
-  const el = $('drivers-card');
-  if (!m.drivers) {
-    el.innerHTML = `<h2>What drives the 5d call</h2><p class="note">Random forest is non-linear — per-feature attribution not shown. Switch to Ridge for drivers.</p>`;
-    return;
-  }
-  const items = m.drivers
-    .map((dr) => `<li><b>${dr.label}</b> — pushes <span class="pushes">${dr.contribution >= 0 ? 'bullish' : 'bearish'} ${fmt.pct(dr.contribution)}</span></li>`)
-    .join('');
-  el.innerHTML = `<h2>What drives the 5d call</h2><ul class="drivers">${items}</ul><p class="note">Contribution = standardized weight × today's standardized value, ridge 5d model.</p>`;
-}
-
-function renderEquity(d) {
-  const bt = d.models.h1.backtest;
-  if (!bt || !bt.equity) return;
-  charts.equity = new Chart($('ch-equity'), {
-    type: 'line',
-    data: {
-      labels: bt.equity.strategy.map((p) => p.date),
-      datasets: [
-        line('Model sign strategy (1d)', bt.equity.strategy.map((p) => p.v), cssVar('--series-2')),
-        line('Long Brent', bt.equity.buyHold.map((p) => p.v), cssVar('--series-1')),
-      ],
-    },
-    options: (() => {
-      const o = baseOpts({ yFmt: (v) => '$' + v.toFixed(2) });
-      o.plugins.tooltip.callbacks = { label: (c) => ` ${c.dataset.label}: $${c.parsed.y.toFixed(3)}` };
-      return o;
-    })(),
-  });
-  htmlLegend($('lg-equity'), [
-    { label: 'model sign strategy (1d preds)', color: cssVar('--series-2') },
-    { label: 'long Brent', color: cssVar('--series-1') },
-  ]);
-}
-
-function renderSpread(d) {
-  charts.spread = new Chart($('ch-spread'), {
-    type: 'line',
-    data: { labels: d.series.dates, datasets: [line('WTI−Brent', d.series.spread, cssVar('--series-2'))] },
-    options: (() => {
-      const o = baseOpts({ yFmt: (v) => '$' + v.toFixed(1) });
-      o.scales.y.grid.color = (ctx) => (ctx.tick.value === 0 ? cssVar('--baseline') : cssVar('--grid'));
-      o.plugins.tooltip.callbacks = { label: (c) => ' spread ' + fmt.usd(c.parsed.y) };
-      return o;
-    })(),
-  });
-}
-
-function renderCorr(d) {
-  const items = d.correlations.filter((c) => c.corr5d != null);
-  charts.corr = new Chart($('ch-corr'), {
-    type: 'bar',
-    data: {
-      labels: items.map((c) => c.label),
-      datasets: [
-        {
-          label: 'corr vs next-5d return',
-          data: items.map((c) => c.corr5d),
-          backgroundColor: items.map((c) => (c.corr5d >= 0 ? cssVar('--pos') : cssVar('--neg'))),
-          borderRadius: 3,
-          borderSkipped: 'start',
-          maxBarThickness: 16,
-        },
-      ],
-    },
-    options: (() => {
-      const o = baseOpts({});
-      o.indexAxis = 'y';
-      o.interaction = { mode: 'nearest', intersect: false };
-      o.scales.x = {
-        grid: { color: (ctx) => (ctx.tick.value === 0 ? cssVar('--baseline') : cssVar('--grid')), drawTicks: false },
-        border: { display: false },
-        ticks: { color: cssVar('--muted'), maxTicksLimit: 7, callback: (v) => Number(v).toFixed(2) },
-      };
-      o.scales.y = { grid: { display: false }, border: { color: cssVar('--baseline') }, ticks: { color: cssVar('--text-secondary'), autoSkip: false } };
-      o.plugins.tooltip.callbacks = {
-        label: (c) => {
-          const it = items[c.dataIndex];
-          return ` r(5d)=${it.corr5d.toFixed(3)} · r(1d)=${it.corr1d == null ? '—' : it.corr1d.toFixed(3)}`;
-        },
-      };
-      return o;
-    })(),
-  });
-  htmlLegend($('lg-corr'), [
-    { label: 'positive — feature ↑ tends to precede price ↑', color: cssVar('--pos'), box: true },
-    { label: 'negative — feature ↑ tends to precede price ↓', color: cssVar('--neg'), box: true },
-  ]);
-}
-
-function renderWeights(d) {
-  const m = d.models.h5;
-  const note = $('weights-note');
-  if (!m.weights) {
-    note.hidden = false;
-    note.textContent = 'Random forest selected — no linear weights. Switch to Ridge.';
-    return;
-  }
-  note.hidden = true;
-  const items = [...m.weights].sort((a, b) => Math.abs(b.w) - Math.abs(a.w));
-  charts.weights = new Chart($('ch-weights'), {
-    type: 'bar',
-    data: {
-      labels: items.map((w) => w.label),
-      datasets: [
-        {
-          label: 'standardized weight',
-          data: items.map((w) => w.w),
-          backgroundColor: items.map((w) => (w.w >= 0 ? cssVar('--pos') : cssVar('--neg'))),
-          borderRadius: 3,
-          borderSkipped: 'start',
-          maxBarThickness: 16,
-        },
-      ],
-    },
-    options: (() => {
-      const o = baseOpts({});
-      o.indexAxis = 'y';
-      o.interaction = { mode: 'nearest', intersect: false };
-      o.scales.x = {
-        grid: { color: (ctx) => (ctx.tick.value === 0 ? cssVar('--baseline') : cssVar('--grid')), drawTicks: false },
-        border: { display: false },
-        ticks: { color: cssVar('--muted'), maxTicksLimit: 7, callback: (v) => fmt.pct(Number(v), 1) },
-      };
-      o.scales.y = { grid: { display: false }, border: { color: cssVar('--baseline') }, ticks: { color: cssVar('--text-secondary'), autoSkip: false } };
-      o.plugins.tooltip.callbacks = { label: (c) => ` weight ${fmt.pct(items[c.dataIndex].w, 2)} per +1σ` };
-      return o;
-    })(),
-  });
-}
-
-function renderScatter(d) {
-  const bt = d.models.h5.backtest;
-  if (!bt || !bt.scatter) return;
-  const zeroGrid = (ctx) => (ctx.tick.value === 0 ? cssVar('--baseline') : cssVar('--grid'));
-  charts.scatter = new Chart($('ch-scatter'), {
-    type: 'scatter',
-    data: {
-      datasets: [
-        {
-          label: 'pred vs realized',
-          data: bt.scatter.map((p) => ({ x: p.pred * 100, y: p.actual * 100 })),
-          backgroundColor: cssVar('--series-1') + '99',
-          pointRadius: 2.5,
-          pointHoverRadius: 5,
-        },
-      ],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      animation: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: { callbacks: { label: (c) => ` pred ${c.parsed.x.toFixed(2)}% → realized ${c.parsed.y.toFixed(2)}%` } },
-      },
-      scales: {
-        x: { title: { display: true, text: 'predicted 5d return (%)', color: cssVar('--muted'), font: { size: 11 } }, grid: { color: zeroGrid, drawTicks: false }, border: { display: false }, ticks: { color: cssVar('--muted'), maxTicksLimit: 7 } },
-        y: { title: { display: true, text: 'realized 5d return (%)', color: cssVar('--muted'), font: { size: 11 } }, grid: { color: zeroGrid, drawTicks: false }, border: { display: false }, ticks: { color: cssVar('--muted'), maxTicksLimit: 7 } },
-      },
-    },
-  });
-}
-
-function renderTable(d) {
-  const rows = [
-    { name: '15-min', m: d.models.i15, note: 'intraday bars, ridge only' },
-    { name: '1-hour', m: d.models.i60, note: 'intraday bars, ridge only' },
-    { name: '1-day', m: d.models.h1, note: 'daily, non-overlapping' },
-    { name: '1-week', m: d.models.h5, note: 'non-overlapping weeks' },
-    { name: '1-month', m: d.models.h21, note: 'non-overlapping months' },
-  ];
-  const cells = rows
-    .filter((r) => r.m && r.m.backtest)
-    .map((r) => {
-      const bt = r.m.backtest;
-      const edge = bt.hitRate - bt.baseRateUp;
-      const maeEdge = bt.maeNaive - bt.mae;
-      return `<tr>
-        <td>${r.name}<div class="note">${r.note}</div></td>
-        <td>${bt.oosStart.slice(0, 10)} → ${bt.oosEnd.slice(0, 10)}</td>
-        <td>${bt.n}</td>
-        <td class="${edge > 0.01 ? 'good' : ''}">${fmt.pct0(bt.hitRate)}</td>
-        <td>${fmt.pct0(bt.baseRateUp)}</td>
-        <td class="${bt.ic > 0.03 ? 'good' : bt.ic < -0.03 ? 'bad' : ''}">${bt.ic.toFixed(3)}</td>
-        <td class="${maeEdge > 0 ? 'good' : 'bad'}">${fmt.pct0(bt.mae)} / ${fmt.pct0(bt.maeNaive)}</td>
-        <td class="bad">${fmt.pct0(bt.maxDrawdown)}</td>
-      </tr>`;
-    })
-    .join('');
-  $('bt-table').innerHTML = `<table class="bt">
-    <thead><tr><th>Horizon</th><th>OOS window</th><th>n</th><th>Hit</th><th>Base up</th><th>IC</th><th>MAE mdl/naive</th><th>Max DD</th></tr></thead>
-    <tbody>${cells}</tbody></table>
-    <p class="note">IC = corr(prediction, realized). A hit rate inside ±2pts of the base rate = no directional edge — expected here; the honest deliverable is the range, not the arrow.</p>`;
-}
-
-function renderMethod(d) {
-  const s = d.sampleInfo;
-  $('method').innerHTML = `
-    <p><b>Sample:</b> ${s.rows} trading days (${s.firstDate} → ${s.lastDate}) + ${s.intradayBars.m15} × 15m bars + ${s.intradayBars.h1} × 1h bars. <b>Daily features:</b> ${s.features.join(' · ')}.</p>
-    <ul>
-      <li><b>Sources:</b> live spot via Capital.com CFD (<code>OIL_BRENT</code>, 5s poll, Yahoo fallback); Yahoo Finance (<code>BZ=F</code>, <code>CL=F</code>, <code>DX-Y.NYB</code>, <code>^OVX</code>, intraday bars); EIA weekly crude stocks (<code>WCESTUS1</code>); news via ${s.parallelEnabled ? 'Parallel Search API + ' : ''}Google News & OilPrice RSS, keyword-scored (CrudeSignal tier lists)${d.news.llm && d.news.llm.ok ? `, LLM-enriched by <code>${d.news.llm.model}</code> via OpenRouter (direction + materiality per headline; keyword layer is the un-suppressible fallback)` : ''}.</li>
-      <li><b>Targets:</b> spot × (1 + model expected return) ± 1σ, σ = trailing realized vol scaled √t (63d daily / 200-bar intraday), widened ×1.2 (ELEVATED) or ×1.5 (EVENT) by the news tape.</li>
-      <li><b>No lookahead:</b> EIA joins on release date (Fri week-end + 5d); training labels only used once their window has elapsed (index-based, works at any bar frequency).</li>
-      <li><b>Models:</b> ridge (λ picked on each training window's tail) + random forest (24 trees, depth 5, rolling ~5y, daily only). Intraday models: ridge on bar momentum + vol. Walk-forward, strictly out-of-sample; 5d/21d scored on non-overlapping windows.</li>
-      <li><b>Honesty rules:</b> dead-zone calls show as flat; conviction buckets carry realized OOS hit rates; no bare probabilities; hit rate always printed beside the base rate.</li>
-      <li><b>Limits:</b> front-month splice; no costs; news scoring is keyword-based (no LLM yet); nobody's model sees the next drone strike — bands are the honest part.</li>
-    </ul>`;
-}
-
 /* ================= orchestration ================= */
 
 function renderSimple(d) {
@@ -532,42 +293,10 @@ function renderSimple(d) {
   renderKpis(d);
 }
 
-function renderAdvanced(d) {
-  $('health').innerHTML = d.health
-    .map((h) => {
-      const cls = !h.ok ? 'bad' : h.stale ? 'stale' : 'ok';
-      const txt = !h.ok ? 'failed' : h.stale ? `stale · ${h.lastDate}` : h.lastDate;
-      return `<span class="chip ${cls}" title="${h.ok ? '' : h.error}"><span class="dot"></span><b>${h.label}</b> ${txt}</span>`;
-    })
-    .join('');
-  biasCard($('bias-1d'), d.models.h1, '1d');
-  biasCard($('bias-5d'), d.models.h5, '5d');
-  renderDrivers(d);
-  renderEquity(d);
-  renderSpread(d);
-  renderCorr(d);
-  renderWeights(d);
-  renderScatter(d);
-  renderTable(d);
-  renderMethod(d);
-}
-
 function renderAll(d) {
   destroyCharts();
-  advRendered = false;
   renderSimple(d);
-  if ($('advanced').open) {
-    renderAdvanced(d);
-    advRendered = true;
-  }
 }
-
-$('advanced').addEventListener('toggle', () => {
-  if ($('advanced').open && !advRendered && lastData) {
-    renderAdvanced(lastData);
-    advRendered = true;
-  }
-});
 
 function setStatus(msg, isError = false) {
   const el = $('status');
@@ -642,7 +371,6 @@ $('btn-insight').addEventListener('click', async () => {
 
 async function load(model) {
   currentModel = model;
-  document.querySelectorAll('.seg-btn').forEach((b) => b.classList.toggle('active', b.dataset.model === model));
   setStatus(model === 'forest' ? 'Training random forest out-of-sample — first run can take a minute or two…' : 'Loading data & training models…');
   try {
     const res = await fetch('/api/dashboard?model=' + model);
@@ -702,8 +430,6 @@ async function pollNews() {
   }
 }
 setInterval(pollNews, 5 * 60 * 1000);
-
-document.querySelectorAll('.seg-btn').forEach((b) => b.addEventListener('click', () => load(b.dataset.model)));
 
 $('btn-refresh').addEventListener('click', async () => {
   const btn = $('btn-refresh');

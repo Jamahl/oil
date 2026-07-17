@@ -82,66 +82,6 @@
     <div id="insight-out" class="llm-read" hidden></div>
   </section>
 
-  <details id="advanced" class="card advanced">
-    <summary>Advanced — models, backtests, correlations</summary>
-    <div class="adv-body">
-      <div class="adv-controls">
-        <div class="seg" role="group" aria-label="Model">
-          <button class="seg-btn active" data-model="ridge">Ridge</button>
-          <button class="seg-btn" data-model="forest">Random forest</button>
-        </div>
-        <div id="health" class="health-row"></div>
-      </div>
-
-      <section class="bias-row">
-        <div class="card bias-card" id="bias-1d"></div>
-        <div class="card bias-card" id="bias-5d"></div>
-        <div class="card" id="drivers-card"></div>
-      </section>
-
-      <section class="grid-2">
-        <div class="card chart-card">
-          <h2>Model equity — sign strategy vs long Brent <span class="unit">growth of $1, out-of-sample, no costs</span></h2>
-          <div class="chart-box"><canvas id="ch-equity"></canvas></div>
-          <div class="legend" id="lg-equity"></div>
-        </div>
-        <div class="card chart-card">
-          <h2>WTI − Brent spread <span class="unit">$/bbl</span></h2>
-          <div class="chart-box"><canvas id="ch-spread"></canvas></div>
-        </div>
-      </section>
-
-      <section class="grid-2">
-        <div class="card chart-card">
-          <h2>Feature ↔ next-5d return correlation <span class="unit">full sample</span></h2>
-          <div class="chart-box tall"><canvas id="ch-corr"></canvas></div>
-          <div class="legend" id="lg-corr"></div>
-        </div>
-        <div class="card chart-card">
-          <h2>Ridge weights — 5d model <span class="unit">standardized</span></h2>
-          <div class="chart-box tall"><canvas id="ch-weights"></canvas></div>
-          <div id="weights-note" class="note" hidden></div>
-        </div>
-      </section>
-
-      <section class="grid-2">
-        <div class="card chart-card">
-          <h2>Predicted vs realized — 5d horizon <span class="unit">out-of-sample</span></h2>
-          <div class="chart-box"><canvas id="ch-scatter"></canvas></div>
-        </div>
-        <div class="card">
-          <h2>Backtest scorecard</h2>
-          <div id="bt-table"></div>
-        </div>
-      </section>
-
-      <div class="method">
-        <h2>Method & caveats</h2>
-        <div id="method"></div>
-      </div>
-    </div>
-  </details>
-
 </div>
 <script src="app.js"></script>
 </body>
