@@ -525,9 +525,11 @@ async function pollBot() {
     const openRows = b.open
       .map((t) => `<tr><td>${t.dir}</td><td>${t.size}</td><td>$${t.entry.toFixed(2)}</td><td>$${t.sl.toFixed(2)}</td><td>$${t.tp.toFixed(2)}</td><td class="${t.livePnl > 0 ? 'good' : t.livePnl < 0 ? 'bad' : ''}">${t.livePnl == null ? '—' : '$' + t.livePnl.toFixed(2)}</td></tr>`)
       .join('');
+    const openHdr = '<div class="jlabel" style="margin-top:8px">● Open positions — live, not yet closed</div>';
     const openTable = b.open.length
       ? `<table class="bt"><thead><tr><th>Dir</th><th>Size</th><th>Entry</th><th>SL</th><th>TP</th><th>Live P/L</th></tr></thead><tbody>${openRows}</tbody></table>`
       : '<p class="note">No open positions.</p>';
+    const closedHdr = b.closed.length ? '<div class="jlabel" style="margin-top:12px">✓ Closed trades — settled history</div>' : '';
     const wins = b.closed.filter((t) => t.pnl > 0).length;
     const dayCls = b.dayPnl > 0 ? 'up' : b.dayPnl < 0 ? 'down' : '';
     const stats = `<div class="bot-stats">
@@ -544,7 +546,7 @@ async function pollBot() {
           .join('')}</tbody></table>`
       : '';
     if (!botEditing) {
-      $('bot-body').innerHTML = stats + openTable + closedTable + botConfigForm(b.config) + events;
+      $('bot-body').innerHTML = stats + openHdr + openTable + closedHdr + closedTable + botConfigForm(b.config) + events;
       document.querySelectorAll('#bot-body [data-bk]').forEach((el) => el.addEventListener('focus', () => (botEditing = true)));
       const saveBtn = $('bot-save');
       if (saveBtn)
