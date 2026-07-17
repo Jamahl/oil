@@ -453,7 +453,7 @@ async function journalTick() {
 
 // ---- scalp bot ----
 app.get('/api/bot', async (req, res) => {
-  try { res.json(bot.status(priceCache.data)); } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
+  try { await bot.reconcile(priceCache.data).catch(() => {}); res.json(bot.status(priceCache.data)); } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
 });
 app.post('/api/bot/config', (req, res) => {
   try { res.json({ ok: true, config: bot.setConfig(req.body || {}) }); } catch (e) { res.status(400).json({ error: String(e.message || e) }); }
