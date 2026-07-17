@@ -48,6 +48,7 @@ One Node/Express process (`server.js`, port 4173, no build step) serves a vanill
 | `lib/model.js` | `fitRidge` (closed-form + λ selection), `fitForest`, `walkForward`, `evaluate`, `calibrateBuckets`, `computeBundle` |
 | `lib/model-worker.js` | 8-line worker-thread shim: `computeBundle(workerData)` → `parentPort.postMessage` |
 | `lib/journal.js` | Prediction journal: dual pg/sqlite driver, DDL, `logPredictions`, `resolveDue`, `computeCalibration`, `stats`, signal logging/scoring, `HORIZONS` |
+| `lib/curve.js` | Brent term structure: `fetchCurve` picks two live contract months (BZ<code><yy>.NYM), M1−M2 spread + PRD-C1 score — the physical-market input to the signal |
 | `lib/signal.js` | `computeSignal`: BUY/HOLD/SELL combiner with tape-dependent weights and journal verdict gates |
 | `public/index.html` | Dashboard skeleton: hero row (price/signal/tape), target cards, news card + LLM config, charts, journal card |
 | `public/app.js` | All rendering + the four poll loops; client-side target re-anchoring (`renderTargets`) |

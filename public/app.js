@@ -268,6 +268,12 @@ function renderKpis(d) {
     const c = k.inventory.chg;
     cells.push(`<div class="kpi"><div class="label">Crude stocks (excl SPR)</div><div class="value">${fmt.mmbbl(k.inventory.level)}</div><div class="delta">${c >= 0 ? '▲' : '▼'} ${Math.abs(c).toFixed(1)}M ${c >= 0 ? 'build' : 'draw'}</div><div class="sub">week ending ${k.inventory.weekEnd}</div></div>`);
   }
+  if (k.curve) {
+    const cv = k.curve;
+    const tilt = cv.state === 'backwardation' ? 'tight physical market (bullish tilt)' : cv.state === 'contango' ? 'oversupplied (bearish tilt)' : 'balanced';
+    const cls = cv.state === 'backwardation' ? 'up' : cv.state === 'contango' ? 'down' : '';
+    cells.push(`<div class="kpi"><div class="label">Brent curve M1−M2</div><div class="value">${cv.spread >= 0 ? '+' : ''}$${cv.spread.toFixed(2)}</div><div class="delta ${cls}">${cv.state} · ${cv.chg5d >= 0 ? '+' : ''}${cv.chg5d.toFixed(2)} 5d</div><div class="sub">${tilt}</div></div>`);
+  }
   $('kpis').innerHTML = cells.join('');
 }
 

@@ -12,6 +12,7 @@ const { buildTargets } = require('./lib/targets');
 const capital = require('./lib/capital');
 const journal = require('./lib/journal');
 const { computeSignal } = require('./lib/signal');
+const { fetchCurve } = require('./lib/curve');
 
 const PORT = process.env.PORT || 4173;
 const app = express();
@@ -46,11 +47,13 @@ const FEEDS = [
   { id: 'i15', label: 'Brent 15m bars', fn: () => yahooSeries('BZ=F', { range: '60d', interval: '15m', ttlMs: 30 * 60 * 1000 }), required: false, staleDays: 4 },
   { id: 'i60', label: 'Brent 1h bars', fn: () => yahooSeries('BZ=F', { range: '730d', interval: '1h', ttlMs: 2 * 60 * 60 * 1000 }), required: false, staleDays: 4 },
   { id: 'news', label: 'News', fn: () => fetchNews(config.newsModel), required: false, staleDays: 2 },
+  { id: 'curve', label: 'Brent curve', fn: () => fetchCurve(), required: false, staleDays: 5 },
 ];
 
 function feedLastDate(id, value) {
   if (id === 'inv') return value.weekEnd[value.weekEnd.length - 1];
   if (id === 'news') return value.fetchedAt;
+  if (id === 'curve') return value.asOf;
   return value.dates[value.dates.length - 1];
 }
 
@@ -198,6 +201,7 @@ async function currentSignal() {
     livePrice: live.mid,
     prevPriceHourAgo: bars.length > 4 ? bars[bars.length - 5] : null,
     journalStats: journalStatsCache,
+    curve: raw.curve || null,
   });
 }
 
@@ -320,6 +324,7 @@ app.get('/api/dashboard', async (req, res) => {
         inventory: invW
           ? { level: invW.level[invW.level.length - 1], chg: invW.chg[invW.chg.length - 1], weekEnd: invW.weekEnd[invW.weekEnd.length - 1] }
           : null,
+        curve: raw.curve || null,
       },
       series: {
         dates: idxRange.map((i) => ds.dates[i]),

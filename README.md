@@ -31,6 +31,7 @@ First start fetches ~10y daily + 60d of 15m bars + 730d of 1h bars (a few second
 | US crude stocks excl SPR (`WCESTUS1`) | EIA public history workbook (`.xls`) | weekly; joined at release date (week-end Fri + 5d = Wed 10:30 ET) — **no lookahead** |
 | **Live spot — Capital.com CFD** | `CAPITAL_*` creds in `.env` (from quantedge; demo env) | `OIL_BRENT` snapshot, browser polls every 5s; session tokens auto-renew on 401; falls back to Yahoo with a "delayed" badge |
 | News — Parallel Search API | `PARALLEL_API_KEY` in `.env` (found in quantedge; ~$0.005/sweep, cached 30 min) | optional — drops out cleanly without the key |
+| Brent term structure | Yahoo individual contract months (`BZU26.NYM`…) | M1−M2 prompt spread: backwardation/contango KPI + signal component (physical-market confirmation, never news-damped) |
 | News — major-outlet RSS | free, keyless | Guardian oil topic feed, CNBC energy feed, Al Jazeera (topic-filtered), OilPrice, Google News general + `source:bloomberg` / `source:reuters` queries. Last 48h only, freshness-weighted ranking, ≤3 items per source |
 | **News LLM scoring — OpenRouter** | `OPENROUTER_API_KEY` in `.env` (from quantedge) | default model `poolside/laguna-xs-2.1:free` ($0), **configurable in the UI** (news card → slug input → Apply, persisted in `data/config.json`) |
 
