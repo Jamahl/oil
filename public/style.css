@@ -1,6 +1,6 @@
 /* CrudeSignal Lab — tokens per the reference dataviz palette (light + dark selected). */
 /* (journal card) */
-#journal-card { margin-bottom: 16px; }
+
 .journal-foot { display: flex; align-items: center; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
 .jintro { color: var(--text-secondary); font-size: 13px; margin: 0 0 12px; }
 .jrow { display: grid; grid-template-columns: 170px 1.2fr 1.2fr 1fr; gap: 14px; padding: 10px 0; border-top: 1px solid var(--grid); align-items: start; }
@@ -61,6 +61,7 @@ body {
   font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 .wrap { max-width: 1180px; margin: 0 auto; padding: 20px 20px 48px; }
+.wrap > section, .wrap > .scalp-strip { margin-bottom: 12px; }
 
 header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; }
 h1 { font-size: 24px; font-weight: 800; margin: 0; letter-spacing: -0.015em; }
@@ -99,7 +100,8 @@ h1 span { color: var(--series-1); }
 .status.error { border-color: var(--chip-bad); color: var(--chip-bad); }
 
 /* --- hero --- */
-.hero-row { display: grid; grid-template-columns: 1fr 1.1fr 1.3fr; gap: 10px; margin-bottom: 10px; }
+.hero-row { display: grid; grid-template-columns: 1fr 1.1fr 1.3fr; gap: 10px; }
+.hero-sig { border-color: color-mix(in srgb, var(--series-1) 30%, var(--border)); }
 .hero-sig .sig-word { font-size: 34px; font-weight: 800; letter-spacing: 0.01em; margin: 2px 0; }
 .sig-word.buy { color: var(--delta-up); }
 .sig-word.sell { color: var(--delta-down); }
@@ -165,7 +167,7 @@ h1 span { color: var(--series-1); }
 .live-badge.live { color: var(--delta-up); }
 
 /* --- news --- */
-.grid-news { display: grid; grid-template-columns: 1.2fr 1fr; gap: 10px; margin-bottom: 10px; align-items: start; }
+.grid-news { display: grid; grid-template-columns: 1.2fr 1fr; gap: 10px; align-items: start; }
 #news-list { max-height: 600px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; padding-right: 4px; }
 .news-item { display: flex; gap: 10px; padding: 9px 6px; margin: 0 -6px; border-radius: 8px; border-bottom: 1px solid var(--grid); align-items: flex-start; }
 .news-item:hover { background: color-mix(in srgb, var(--text-primary) 3%, transparent); }
@@ -189,10 +191,10 @@ h1 span { color: var(--series-1); }
 .advanced .bias-row { margin-bottom: 10px; }
 .advanced .card { background: var(--page); }
 
-.kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 16px; }
+.kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
 .kpi { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
 .kpi .label { font-size: 12px; color: var(--muted); }
-.kpi .value { font-size: 22px; font-weight: 650; margin-top: 2px; }
+.kpi .value { font-size: 22px; font-weight: 650; margin-top: 2px; font-variant-numeric: tabular-nums; }
 .kpi .delta { font-size: 12px; margin-top: 2px; font-variant-numeric: tabular-nums; }
 .kpi .delta.up { color: var(--delta-up); }
 .kpi .delta.down { color: var(--delta-down); }
@@ -245,7 +247,7 @@ table.bt tr:last-child td { border-bottom: 0; }
 .method code { background: color-mix(in srgb, var(--surface-1) 70%, var(--text-primary) 8%); padding: 1px 5px; border-radius: 4px; font-size: 12px; }
 
 /* --- scalp conditions strip --- */
-.scalp-strip { display: flex; gap: 18px; flex-wrap: wrap; align-items: center; background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 10px 16px; margin: 0 0 16px; font-size: 13px; font-variant-numeric: tabular-nums; }
+.scalp-strip { display: flex; gap: 18px; flex-wrap: wrap; align-items: center; background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 10px 16px; font-size: 13px; font-variant-numeric: tabular-nums; min-height: 46px; }
 .scalp-strip .slabel { font-size: 10.5px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); display: block; }
 .scalp-strip .sval { font-weight: 650; }
 .scalp-verdict { border-radius: 999px; padding: 3px 10px; font-size: 12px; font-weight: 600; border: 1px solid var(--border); }
