@@ -322,3 +322,6 @@ table.bt { font-size: 11.5px; } table.bt th, table.bt td { padding: 3px 6px !imp
 .bot-events { font-size: 10.5px; max-height: 100px; }
 .legend { font-size: 10.5px; margin-top: 4px; }
 .note { font-size: 11px; }
+
+.xclose { appearance: none; border: 1px solid var(--border); background: transparent; color: var(--muted); border-radius: 5px; width: 18px; height: 18px; line-height: 1; font-size: 12px; cursor: pointer; padding: 0; }
+.xclose:hover { color: var(--delta-down); border-color: color-mix(in srgb, var(--delta-down) 45%, transparent); }

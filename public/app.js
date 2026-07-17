@@ -535,7 +535,213 @@ async function pollBot() {
     $('bot-stop').hidden = !b.running;
 
     const openRows = b.open
-      .map((t) => `<tr><td>${t.dir}${t.kind && t.kind !== 'solo' ? ' · ' + t.kind : ''}</td><td>${t.size}</td><td>$${t.entry.toFixed(2)}</td><td>$${t.sl.toFixed(2)}</td><td>$${t.tp.toFixed(2)}</td><td class="${t.livePnl > 0 ? 'good' : t.livePnl < 0 ? 'bad' : ''}">${t.livePnl == null ? '—' : '$' + t.livePnl.toFixed(2)}</td></tr>`)
+      .map((t) => `<tr><td>${t.dir}${t.kind && t.kind !== 'solo' ? ' · ' + t.kind : ''}</td><td>${t.size}</td><td>$${t.entry.toFixed(2)}</td><td>$${t.sl.toFixed(2)}</td><td>$${t.tp.toFixed(2)}</td><td class="${t.livePnl > 0 ? 'good' : t.livePnl < 0 ? 'bad' : ''}">${t.livePnl == null ? '—' : '`)
+      .join('');
+    const openHdr = '<div class="jlabel" style="margin-top:8px">● Open positions — live, not yet closed</div>';
+    const openTable = b.open.length
+      ? `<table class="bt"><thead><tr><th>Dir</th><th>Size</th><th>Entry</th><th>SL</th><th>TP</th><th>Live P/L</th><th></th></tr></thead><tbody>${openRows}</tbody></table>`
+      : '<p class="note">No open positions.</p>';
+    const closedHdr = b.closed.length ? '<div class="jlabel" style="margin-top:12px">✓ Closed trades — settled history</div>' : '';
+    const wins = b.closed.filter((t) => t.pnl > 0).length;
+    const dayCls = b.dayPnl > 0 ? 'up' : b.dayPnl < 0 ? 'down' : '';
+    const floating = b.open.reduce((s, t) => s + (t.livePnl || 0), 0);
+    const plain = b.running
+      ? `The bot is <b class="good">ON</b> (demo money). Today it has banked <b class="${dayCls === 'down' ? 'bad' : 'good'}">${b.dayPnl.toFixed(2)}\</b> from ${b.closedCount} finished trade${b.closedCount === 1 ? '' : 's'} (${wins} won). ${b.open.length ? `${b.open.length} trade${b.open.length > 1 ? 's are' : ' is'} still open, currently ${floating >= 0 ? 'up' : 'down'} ${Math.abs(floating).toFixed(2)} — each closes itself at its take-profit or stop.` : 'No trades open right now — it waits for the next signal.'}`
+      : 'The bot is <b>OFF</b>. Press Start and it will trade the signal automatically with demo money.';
+    const stats = `<p class="jintro">${plain}</p>`;
+    const events = `<div class="bot-events">${b.events.map((e) => `${new Date(e.at).toLocaleTimeString()} — ${escapeHtml(e.msg)}`).join('<br>')}</div>`;
+
+    const closedTable = b.closed.length
+      ? `<table class="bt"><thead><tr><th>Closed</th><th>Dir</th><th>Size</th><th>Entry</th><th>Exit</th><th>P/L</th><th>Why</th></tr></thead><tbody>${b.closed
+          .map((t) => `<tr><td>${new Date(t.closedAt).toLocaleTimeString()}</td><td>${t.dir}</td><td>${t.size}</td><td>$${t.entry.toFixed(2)}</td><td>$${t.exit.toFixed(2)}</td><td class="${t.pnl > 0 ? 'good' : 'bad'}">$${t.pnl.toFixed(2)}</td><td class="note">${escapeHtml(t.reason || '')}</td></tr>`)
+          .join('')}</tbody></table>`
+      : '';
+    if (!botEditing) {
+      $('bot-body').innerHTML = stats + openHdr + openTable + closedHdr + closedTable + '<details style="margin-top:10px"><summary class="note" style="cursor:pointer">Settings</summary>' + botConfigForm(b.config) + '</details><details style="margin-top:6px"><summary class="note" style="cursor:pointer">Activity log</summary>' + events + '</details>';
+      document.querySelectorAll('#bot-body [data-bk]').forEach((el) => {
+        el.addEventListener('focus', () => (botEditing = true));
+        el.addEventListener('input', () => {
+          const v = { ...b.config };
+          document.querySelectorAll('#bot-body [data-bk]').forEach((x) => { v[x.dataset.bk] = x.type === 'number' ? Number(x.value) : x.value; });
+          const ex = document.getElementById('bot-explain');
+          if (ex) ex.outerHTML = botSentence(v);
+        });
+      });
+      const saveBtn = $('bot-save');
+      if (saveBtn)
+        saveBtn.addEventListener('click', async () => {
+          const patch = {};
+          document.querySelectorAll('#bot-body [data-bk]').forEach((el) => {
+            const v = el.type === 'number' ? Number(el.value) : el.value;
+            patch[el.dataset.bk] = el.dataset.bk === 'runnerEnabled' ? v === 'true' : v;
+          });
+          const r = await fetch('/api/bot/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) });
+          const j = await r.json();
+          botEditing = false;
+          if (!r.ok) setStatus('Bot config rejected: ' + j.error, true);
+          else setStatus(null);
+          pollBot();
+        });
+    }
+  } catch (e) {
+    $('bot-body').innerHTML = `<p class="note">Bot unavailable: ${escapeHtml(e.message)}</p>`;
+  }
+}
+$('bot-start').addEventListener('click', async () => {
+  const r = await fetch('/api/bot/start', { method: 'POST' });
+  if (!r.ok) setStatus('Bot start refused: ' + (await r.json()).error, true);
+  botEditing = false;
+  pollBot();
+});
+$('bot-stop').addEventListener('click', async () => {
+  await fetch('/api/bot/stop', { method: 'POST' });
+  botEditing = false;
+  pollBot();
+});
+for (const d of ['buy', 'sell'])
+  $('bot-' + d).addEventListener('click', async () => {
+    const r = await fetch('/api/bot/manual', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dir: d.toUpperCase() }) });
+    if (!r.ok) setStatus('Manual trade refused: ' + (await r.json()).error, true); else setStatus(null);
+    pollBot();
+  });
+$('bot-body').addEventListener('click', async (ev) => {
+  const btn = ev.target.closest('.xclose');
+  if (!btn) return;
+  btn.disabled = true;
+  const r = await fetch('/api/bot/close-one', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dealId: btn.dataset.deal }) });
+  if (!r.ok) setStatus('Close failed: ' + (await r.json()).error, true);
+  pollBot();
+});
+$('bot-closeall').addEventListener('click', async () => {
+  await fetch('/api/bot/close-all', { method: 'POST' });
+  pollBot();
+});
+setInterval(() => {
+  if (!botEditing) pollBot();
+}, 10000);
+pollBot();
+
+$('btn-refresh').addEventListener('click', async () => {
+  const btn = $('btn-refresh');
+  btn.disabled = true;
+  setStatus('Refetching all feeds & retraining…');
+  try {
+    const res = await fetch('/api/refresh', { method: 'POST' });
+    if (!res.ok) throw new Error((await res.json()).error || res.statusText);
+    await load(currentModel);
+  } catch (e) {
+    setStatus('Refresh failed: ' + e.message, true);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+  if (lastData) renderAll(lastData);
+});
+
+/* --- LLM model config --- */
+async function initConfig() {
+  try {
+    const cfg = await (await fetch('/api/config')).json();
+    $('inp-llm').value = cfg.newsModel || '';
+  } catch {
+    /* non-fatal */
+  }
+}
+
+$('btn-llm').addEventListener('click', async () => {
+  const btn = $('btn-llm');
+  const slug = $('inp-llm').value.trim();
+  if (!slug) return;
+  btn.disabled = true;
+  setStatus(`Re-scoring news with ${slug}…`);
+  try {
+    const res = await fetch('/api/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ newsModel: slug }),
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || res.statusText);
+    await load(currentModel);
+  } catch (e) {
+    setStatus('Model change failed: ' + e.message, true);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+/* --- live price poll (capital.com CFD, yahoo fallback) --- */
+let liveSpot = null;
+async function pollPrice() {
+  try {
+    const p = await (await fetch('/api/price')).json();
+    if (!p || p.error || !lastData) return;
+    liveSpot = p.mid;
+    const live = p.source === 'capital-cfd';
+    const badge = $('live-badge');
+    if (badge) {
+      badge.className = 'live-badge' + (live ? ' live' : '');
+      badge.innerHTML = `<span class="dot"></span>${live ? `LIVE CFD${p.env === 'demo' ? '' : ''}${p.marketStatus && p.marketStatus !== 'TRADEABLE' ? ' · ' + p.marketStatus.toLowerCase() : ''}` : 'delayed'}`;
+    }
+    const big = $('hero-big');
+    if (big) big.textContent = fmt.usd(p.mid);
+    const asof = $('hero-asof');
+    if (asof) asof.textContent = 'as of ' + new Date(p.at).toLocaleTimeString() + (live ? ` · bid ${p.bid.toFixed(2)} / ask ${p.offer.toFixed(2)}` : '');
+    const deltaEl = $('hero-delta');
+    if (deltaEl && live && p.pctChange != null) {
+      const up = p.pctChange >= 0;
+      deltaEl.className = `delta ${up ? 'up' : 'down'}`;
+      deltaEl.textContent = `${up ? '▲' : '▼'} ${up ? '+' : ''}${p.pctChange.toFixed(2)}% today`;
+    }
+    renderTargets(lastData, liveSpot); // re-anchor target prices on the live spot
+    renderScalp(p);
+  } catch {
+    /* next tick */
+  }
+}
+setInterval(pollPrice, 5000);
+
+// Scalper's viability check: is the typical short-horizon move big enough to
+// pay the round-trip spread? Updates with every live tick.
+function renderScalp(p) {
+  const el = $('scalp');
+  if (!el || !lastData) return;
+  const t15 = lastData.targets.find((t) => t.id === 'm15');
+  const t30 = lastData.targets.find((t) => t.id === 'm30');
+  if (!t15) {
+    el.hidden = true;
+    return;
+  }
+  const live = p.source === 'capital-cfd' && p.bid != null && p.offer != null;
+  const spot = p.mid;
+  const range15 = spot * t15.bandPct;
+  const range30 = t30 ? spot * t30.bandPct : null;
+  const spread = live ? p.offer - p.bid : null;
+  const ratio = spread > 0 ? range15 / spread : null;
+  const verdict =
+    ratio == null
+      ? { cls: '', txt: 'live spread unavailable (delayed feed)' }
+      : ratio >= 8
+        ? { cls: 'good', txt: `good — typical move is ${ratio.toFixed(0)}× the spread` }
+        : ratio >= 4
+          ? { cls: 'ok', txt: `workable — move is ${ratio.toFixed(0)}× the spread` }
+          : { cls: 'poor', txt: 'poor — the spread eats the typical move' };
+  const tape = lastData.news.activity.level;
+  el.hidden = false;
+  el.innerHTML = `
+    <span><span class="slabel">Scalp conditions</span><span class="scalp-verdict ${verdict.cls}">${verdict.txt}</span></span>
+    <span><span class="slabel">CFD spread (your cost)</span><span class="sval">${spread != null ? '$' + spread.toFixed(3) : '—'}</span></span>
+    <span><span class="slabel">Typical 15m move (±1σ)</span><span class="sval">±$${range15.toFixed(2)}</span></span>
+    ${range30 != null ? `<span><span class="slabel">Typical 30m move</span><span class="sval">±$${range30.toFixed(2)}</span></span>` : ''}
+    <span><span class="slabel">Move ÷ spread</span><span class="sval">${ratio != null ? ratio.toFixed(1) + '×' : '—'}</span></span>
+    ${tape !== 'QUIET' ? `<span class="note">⚠ ${tape} tape — headline jumps, slippage risk on tight stops</span>` : ''}`;
+}
+
+initConfig();
+load('ridge').then(pollPrice);
+ + t.livePnl.toFixed(2)}</td><td><button class="xclose" data-deal="${t.dealId}" title="close this position now">×</button></td></tr>`)
       .join('');
     const openHdr = '<div class="jlabel" style="margin-top:8px">● Open positions — live, not yet closed</div>';
     const openTable = b.open.length

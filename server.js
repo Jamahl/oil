@@ -466,6 +466,13 @@ app.post('/api/bot/manual', async (req, res) => {
   catch (e) { res.status(400).json({ error: String(e.message || e) }); }
 });
 app.post('/api/bot/stop', (req, res) => { bot.stop(); res.json({ ok: true }); });
+app.post('/api/bot/close-one', async (req, res) => {
+  try {
+    if (!req.body || !req.body.dealId) return res.status(400).json({ error: 'dealId required' });
+    await capital.closePosition(String(req.body.dealId));
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
+});
 app.post('/api/bot/close-all', async (req, res) => {
   try { await bot.closeAll(); res.json({ ok: true }); } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
 });
