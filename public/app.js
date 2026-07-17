@@ -532,12 +532,11 @@ async function pollBot() {
     const closedHdr = b.closed.length ? '<div class="jlabel" style="margin-top:12px">✓ Closed trades — settled history</div>' : '';
     const wins = b.closed.filter((t) => t.pnl > 0).length;
     const dayCls = b.dayPnl > 0 ? 'up' : b.dayPnl < 0 ? 'down' : '';
-    const stats = `<div class="bot-stats">
-      <span>Today: <b class="${dayCls}">$${b.dayPnl.toFixed(2)}</b></span>
-      <span>Open: <b>${b.open.length}/${b.config.maxOpenTrades}</b></span>
-      <span>Closed: <b>${b.closedCount}</b>${b.closed.length ? ` (last ${b.closed.length}: ${wins} wins)` : ''}</span>
-      <span class="note">demo account · signals every 15s · exits are broker-side</span>
-    </div>`;
+    const floating = b.open.reduce((s, t) => s + (t.livePnl || 0), 0);
+    const plain = b.running
+      ? `The bot is <b class="good">ON</b> (demo money). Today it has banked <b class="${dayCls === 'down' ? 'bad' : 'good'}">${b.dayPnl.toFixed(2)}\</b> from ${b.closedCount} finished trade${b.closedCount === 1 ? '' : 's'} (${wins} won). ${b.open.length ? `${b.open.length} trade${b.open.length > 1 ? 's are' : ' is'} still open, currently ${floating >= 0 ? 'up' : 'down'} ${Math.abs(floating).toFixed(2)} — each closes itself at its take-profit or stop.` : 'No trades open right now — it waits for the next signal.'}`
+      : 'The bot is <b>OFF</b>. Press Start and it will trade the signal automatically with demo money.';
+    const stats = `<p class="jintro">${plain}</p>`;
     const events = `<div class="bot-events">${b.events.map((e) => `${new Date(e.at).toLocaleTimeString()} — ${escapeHtml(e.msg)}`).join('<br>')}</div>`;
 
     const closedTable = b.closed.length
@@ -546,7 +545,7 @@ async function pollBot() {
           .join('')}</tbody></table>`
       : '';
     if (!botEditing) {
-      $('bot-body').innerHTML = stats + openHdr + openTable + closedHdr + closedTable + botConfigForm(b.config) + events;
+      $('bot-body').innerHTML = stats + openHdr + openTable + closedHdr + closedTable + '<details style="margin-top:10px"><summary class="note" style="cursor:pointer">Settings</summary>' + botConfigForm(b.config) + '</details><details style="margin-top:6px"><summary class="note" style="cursor:pointer">Activity log</summary>' + events + '</details>';
       document.querySelectorAll('#bot-body [data-bk]').forEach((el) => el.addEventListener('focus', () => (botEditing = true)));
       const saveBtn = $('bot-save');
       if (saveBtn)
