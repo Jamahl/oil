@@ -266,3 +266,8 @@ table.bt tr:last-child td { border-bottom: 0; }
 .bot-events { font-size: 12px; color: var(--text-secondary); max-height: 130px; overflow-y: auto; border-top: 1px solid var(--grid); padding-top: 6px; font-variant-numeric: tabular-nums; }
 .chip.run .dot { background: var(--chip-ok); } .chip.halt .dot { background: var(--chip-warn); } .chip.off .dot { background: var(--muted); }
 #bot-card table.bt td, #bot-card table.bt th { padding: 4px 8px; }
+
+.bot-sentence { font-size: 13px; line-height: 2; color: var(--text-secondary); margin: 4px 0 10px; }
+.bot-var { font-size: 17px; font-weight: 750; color: var(--text-primary); background: color-mix(in srgb, var(--text-primary) 5%, transparent); border-radius: 6px; padding: 1px 7px; margin: 0 2px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bot-var.win { color: var(--delta-up); background: color-mix(in srgb, var(--delta-up) 9%, transparent); }
+.bot-var.lose { color: var(--delta-down); background: color-mix(in srgb, var(--delta-down) 9%, transparent); }

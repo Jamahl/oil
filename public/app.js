@@ -496,7 +496,8 @@ const BOT_FIELDS = ['sizeMode', 'positionSize', 'riskAmount', 'tpMode', 'tpValue
 function botSentence(c) {
   const win = c.positionSize * (c.tpMode === 'usd' ? c.tpValue : 0);
   const loss = c.positionSize * (c.slMode === 'usd' ? c.slValue : 0);
-  return `<div id="bot-explain"><p class="jintro">In plain English: each trade buys or sells <b>${c.positionSize} barrels</b> when the signal fires${CONF_RANK_TXT(c.minConfidence)}. It closes itself at <b>+${win.toFixed(2)} profit</b> (price moves ${c.tpValue} your way) or <b>−${loss.toFixed(2)} loss</b> (${c.slValue} against you). Up to <b>${c.maxOpenTrades} trades</b> can run at once, with a ${Math.round(c.cooldownSec / 60)}-min pause between entries, and the bot stops for the day if it loses ${c.dailyLossCap}.</p></div>`;
+  const V = (t, cls = '') => `<span class="bot-var ${cls}">${t}</span>`;
+  return `<div id="bot-explain"><p class="bot-sentence">Each trade is ${V(c.positionSize + ' barrels')} when the signal fires${CONF_RANK_TXT(c.minConfidence)}. It banks ${V('+$' + win.toFixed(2), 'win')} when price moves $${c.tpValue} your way, or cuts at ${V('−$' + loss.toFixed(2), 'lose')} if it goes $${c.slValue} against you. Up to ${V(c.maxOpenTrades + ' trades')} at once, ${V(Math.round(c.cooldownSec / 60) + ' min')} between entries, day stops after ${V('−$' + c.dailyLossCap, 'lose')}.</p></div>`;
 }
 
 function botConfigForm(c) {
