@@ -13,6 +13,7 @@ const capital = require('./lib/capital');
 const journal = require('./lib/journal');
 const { computeSignal } = require('./lib/signal');
 const { fetchCurve } = require('./lib/curve');
+const bot = require('./lib/bot');
 
 const PORT = process.env.PORT || 4173;
 const app = express();
@@ -449,6 +450,24 @@ async function journalTick() {
     ticking = false;
   }
 }
+
+// ---- scalp bot ----
+app.get('/api/bot', async (req, res) => {
+  try { res.json(bot.status(priceCache.data)); } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
+});
+app.post('/api/bot/config', (req, res) => {
+  try { res.json({ ok: true, config: bot.setConfig(req.body || {}) }); } catch (e) { res.status(400).json({ error: String(e.message || e) }); }
+});
+app.post('/api/bot/start', (req, res) => {
+  try { bot.start(); res.json({ ok: true }); } catch (e) { res.status(400).json({ error: String(e.message || e) }); }
+});
+app.post('/api/bot/stop', (req, res) => { bot.stop(); res.json({ ok: true }); });
+app.post('/api/bot/close-all', async (req, res) => {
+  try { await bot.closeAll(); res.json({ ok: true }); } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
+});
+setInterval(async () => {
+  try { await bot.tick(await currentSignal(), await getLiveSpot()); } catch (e) { console.error('bot tick failed:', e.message); }
+}, 15000);
 
 app.get('/api/journal', async (req, res) => {
   try {

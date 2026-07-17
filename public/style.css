@@ -256,3 +256,13 @@ table.bt tr:last-child td { border-bottom: 0; }
 .scalp-verdict.good { color: var(--delta-up); border-color: color-mix(in srgb, var(--delta-up) 45%, transparent); }
 .scalp-verdict.ok { color: color-mix(in srgb, var(--chip-warn) 70%, var(--text-primary)); }
 .scalp-verdict.poor { color: var(--delta-down); border-color: color-mix(in srgb, var(--delta-down) 45%, transparent); }
+
+/* --- scalp bot --- */
+.bot-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px 12px; margin: 10px 0; }
+.bot-grid label { font-size: 10.5px; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); display: block; margin-bottom: 2px; }
+.bot-grid input, .bot-grid select { width: 100%; font: inherit; font-size: 13px; color: var(--text-primary); background: var(--page); border: 1px solid var(--border); border-radius: 8px; padding: 5px 8px; }
+.bot-stats { display: flex; gap: 18px; flex-wrap: wrap; font-size: 13px; margin: 8px 0; font-variant-numeric: tabular-nums; }
+.bot-stats b.up { color: var(--delta-up); } .bot-stats b.down { color: var(--delta-down); }
+.bot-events { font-size: 12px; color: var(--text-secondary); max-height: 130px; overflow-y: auto; border-top: 1px solid var(--grid); padding-top: 6px; font-variant-numeric: tabular-nums; }
+.chip.run .dot { background: var(--chip-ok); } .chip.halt .dot { background: var(--chip-warn); } .chip.off .dot { background: var(--muted); }
+#bot-card table.bt td, #bot-card table.bt th { padding: 4px 8px; }

@@ -488,6 +488,99 @@ async function pollNews() {
 }
 setInterval(pollNews, 5 * 60 * 1000);
 
+/* --- scalp bot --- */
+let botEditing = false;
+const BOT_FIELDS = ['sizeMode', 'positionSize', 'riskAmount', 'tpMode', 'tpValue', 'slMode', 'slValue', 'maxOpenTrades', 'cooldownSec', 'minConfidence', 'dailyLossCap'];
+
+function botConfigForm(c) {
+  const sel = (name, opts, cur) =>
+    `<select data-bk="${name}">${opts.map((o) => `<option value="${o[0]}" ${o[0] === String(cur) ? 'selected' : ''}>${o[1]}</option>`).join('')}</select>`;
+  const num = (name, cur, step = 'any') => `<input data-bk="${name}" type="number" step="${step}" value="${cur}">`;
+  return `<div class="bot-grid">
+    <span><label>Sizing</label>${sel('sizeMode', [['fixed', 'fixed size'], ['risk', 'risk amount']], c.sizeMode)}</span>
+    <span><label>Size (barrels)</label>${num('positionSize', c.positionSize, '0.1')}</span>
+    <span><label>Risk $ / trade</label>${num('riskAmount', c.riskAmount, '1')}</span>
+    <span><label>Profit take</label>${sel('tpMode', [['usd', '$ per barrel'], ['pct', '% of price']], c.tpMode)}</span>
+    <span><label>TP value</label>${num('tpValue', c.tpValue, '0.01')}</span>
+    <span><label>Stop loss</label>${sel('slMode', [['usd', '$ per barrel'], ['pct', '% of price']], c.slMode)}</span>
+    <span><label>SL value</label>${num('slValue', c.slValue, '0.01')}</span>
+    <span><label>Max open trades</label>${num('maxOpenTrades', c.maxOpenTrades, '1')}</span>
+    <span><label>Cooldown (sec)</label>${num('cooldownSec', c.cooldownSec, '15')}</span>
+    <span><label>Min signal conviction</label>${sel('minConfidence', [['Lean', 'Lean'], ['Moderate', 'Moderate'], ['Strong', 'Strong']], c.minConfidence)}</span>
+    <span><label>Daily loss cap $</label>${num('dailyLossCap', c.dailyLossCap, '10')}</span>
+    <span><label>&nbsp;</label><button id="bot-save" class="btn small">Save config</button></span>
+  </div>`;
+}
+
+async function pollBot() {
+  try {
+    const b = await (await fetch('/api/bot')).json();
+    if (b.error) throw new Error(b.error);
+    const envChip = $('bot-env');
+    envChip.className = 'chip ' + (b.running ? 'run' : b.halted ? 'halt' : 'off');
+    envChip.innerHTML = `<span class="dot"></span>${b.env.toUpperCase()} · ${b.running ? (b.halted ? 'HALTED: ' + b.halted : 'RUNNING') : 'stopped'}`;
+    $('bot-start').hidden = b.running;
+    $('bot-stop').hidden = !b.running;
+
+    const openRows = b.open
+      .map((t) => `<tr><td>${t.dir}</td><td>${t.size}</td><td>$${t.entry.toFixed(2)}</td><td>$${t.sl.toFixed(2)}</td><td>$${t.tp.toFixed(2)}</td><td class="${t.livePnl > 0 ? 'good' : t.livePnl < 0 ? 'bad' : ''}">${t.livePnl == null ? '—' : '$' + t.livePnl.toFixed(2)}</td></tr>`)
+      .join('');
+    const openTable = b.open.length
+      ? `<table class="bt"><thead><tr><th>Dir</th><th>Size</th><th>Entry</th><th>SL</th><th>TP</th><th>Live P/L</th></tr></thead><tbody>${openRows}</tbody></table>`
+      : '<p class="note">No open positions.</p>';
+    const wins = b.closed.filter((t) => t.pnl > 0).length;
+    const dayCls = b.dayPnl > 0 ? 'up' : b.dayPnl < 0 ? 'down' : '';
+    const stats = `<div class="bot-stats">
+      <span>Today: <b class="${dayCls}">$${b.dayPnl.toFixed(2)}</b></span>
+      <span>Open: <b>${b.open.length}/${b.config.maxOpenTrades}</b></span>
+      <span>Closed: <b>${b.closedCount}</b>${b.closed.length ? ` (last ${b.closed.length}: ${wins} wins)` : ''}</span>
+      <span class="note">demo account · signals every 15s · exits are broker-side</span>
+    </div>`;
+    const events = `<div class="bot-events">${b.events.map((e) => `${new Date(e.at).toLocaleTimeString()} — ${escapeHtml(e.msg)}`).join('<br>')}</div>`;
+
+    if (!botEditing) {
+      $('bot-body').innerHTML = stats + openTable + botConfigForm(b.config) + events;
+      document.querySelectorAll('#bot-body [data-bk]').forEach((el) => el.addEventListener('focus', () => (botEditing = true)));
+      const saveBtn = $('bot-save');
+      if (saveBtn)
+        saveBtn.addEventListener('click', async () => {
+          const patch = {};
+          document.querySelectorAll('#bot-body [data-bk]').forEach((el) => {
+            const v = el.type === 'number' ? Number(el.value) : el.value;
+            patch[el.dataset.bk] = v;
+          });
+          const r = await fetch('/api/bot/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) });
+          const j = await r.json();
+          botEditing = false;
+          if (!r.ok) setStatus('Bot config rejected: ' + j.error, true);
+          else setStatus(null);
+          pollBot();
+        });
+    }
+  } catch (e) {
+    $('bot-body').innerHTML = `<p class="note">Bot unavailable: ${escapeHtml(e.message)}</p>`;
+  }
+}
+$('bot-start').addEventListener('click', async () => {
+  const r = await fetch('/api/bot/start', { method: 'POST' });
+  if (!r.ok) setStatus('Bot start refused: ' + (await r.json()).error, true);
+  botEditing = false;
+  pollBot();
+});
+$('bot-stop').addEventListener('click', async () => {
+  await fetch('/api/bot/stop', { method: 'POST' });
+  botEditing = false;
+  pollBot();
+});
+$('bot-closeall').addEventListener('click', async () => {
+  await fetch('/api/bot/close-all', { method: 'POST' });
+  pollBot();
+});
+setInterval(() => {
+  if (!botEditing) pollBot();
+}, 10000);
+pollBot();
+
 $('btn-refresh').addEventListener('click', async () => {
   const btn = $('btn-refresh');
   btn.disabled = true;
