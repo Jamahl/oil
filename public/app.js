@@ -561,7 +561,7 @@ async function pollBot() {
       ? `<table class="bt"><thead><tr><th>Closed</th><th>Dir</th><th>Size</th><th>Entry</th><th>Exit</th><th>P/L</th><th>Why</th></tr></thead><tbody>${b.closed
           .map((t) => `<tr><td>${new Date(t.closedAt).toLocaleTimeString()}</td><td>${t.env === 'live' ? '<span class="envtag real">REAL</span> ' : ''}${t.dir}</td><td>${t.size}</td><td>$${t.entry.toFixed(2)}</td><td>$${t.exit.toFixed(2)}</td><td class="${t.pnl > 0 ? 'good' : 'bad'}">$${t.pnl.toFixed(2)}</td><td class="note">${escapeHtml(t.reason || '')}</td></tr>`)
           .join('')}</tbody></table>`
-      : '';
+      : '<p class="note">No settled trades on this account yet — each tab keeps its own history (your demo trades are on the Demo tab).</p>';
     if (!botEditing) {
       $('bot-body').innerHTML = stats + openHdr + openTable + closedHdr + closedTable + '<details style="margin-top:10px"><summary class="note" style="cursor:pointer">Settings</summary>' + botConfigForm(b.config) + '</details><details style="margin-top:6px"><summary class="note" style="cursor:pointer">Activity log</summary>' + events + '</details>';
       document.querySelectorAll('#bot-body [data-bk]').forEach((el) => {
