@@ -538,8 +538,13 @@ async function pollBot() {
     </div>`;
     const events = `<div class="bot-events">${b.events.map((e) => `${new Date(e.at).toLocaleTimeString()} — ${escapeHtml(e.msg)}`).join('<br>')}</div>`;
 
+    const closedTable = b.closed.length
+      ? `<table class="bt"><thead><tr><th>Closed</th><th>Dir</th><th>Size</th><th>Entry</th><th>Exit</th><th>P/L</th><th>Why</th></tr></thead><tbody>${b.closed
+          .map((t) => `<tr><td>${new Date(t.closedAt).toLocaleTimeString()}</td><td>${t.dir}</td><td>${t.size}</td><td>$${t.entry.toFixed(2)}</td><td>$${t.exit.toFixed(2)}</td><td class="${t.pnl > 0 ? 'good' : 'bad'}">$${t.pnl.toFixed(2)}</td><td class="note">${escapeHtml(t.reason || '')}</td></tr>`)
+          .join('')}</tbody></table>`
+      : '';
     if (!botEditing) {
-      $('bot-body').innerHTML = stats + openTable + botConfigForm(b.config) + events;
+      $('bot-body').innerHTML = stats + openTable + closedTable + botConfigForm(b.config) + events;
       document.querySelectorAll('#bot-body [data-bk]').forEach((el) => el.addEventListener('focus', () => (botEditing = true)));
       const saveBtn = $('bot-save');
       if (saveBtn)
