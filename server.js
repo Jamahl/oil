@@ -184,6 +184,12 @@ async function getLiveSpot() {
   return out;
 }
 
+function liveSpreadPct() {
+  const p = priceCache.data;
+  if (p && p.source === 'capital-cfd' && p.offer > p.bid && p.mid > 0) return (p.offer - p.bid) / p.mid;
+  return 0.0004; // ~4 bps fallback when no live quote
+}
+
 app.get('/api/price', async (req, res) => {
   try {
     res.json(await getLiveSpot());
@@ -297,6 +303,7 @@ app.get('/api/dashboard', async (req, res) => {
       newsLevel: news.activity.level,
       bandFactor: newsBandFactor(news.activity.level),
       calibration: journalCalib,
+      spreadPct: liveSpreadPct(),
     });
 
     const tail = 504;
@@ -425,6 +432,7 @@ async function journalTick() {
       newsLevel: news.activity.level,
       bandFactor: newsBandFactor(news.activity.level),
       calibration: journalCalib,
+      spreadPct: liveSpreadPct(),
     });
     const logged = await journal.logPredictions(targets, spot, 'ridge', news.activity.level);
     try {
