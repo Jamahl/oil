@@ -209,6 +209,30 @@ app.get('/api/signal', async (req, res) => {
   }
 });
 
+// Fresh news bundle for the 5-min UI poll (RSS lanes re-fetch; Parallel and the
+// LLM pass ride their own caches, so an unchanged headline set costs nothing).
+async function freshNews(maxAgeMs = 5 * 60 * 1000) {
+  await loadData();
+  const cur = state.data.raw.news;
+  const age = cur ? Date.now() - Date.parse(cur.fetchedAt) : Infinity;
+  if (age > maxAgeMs) {
+    try {
+      state.data.raw.news = await fetchNews(config.newsModel);
+    } catch (e) {
+      console.error('news refresh failed:', e.message);
+    }
+  }
+  return state.data.raw.news;
+}
+
+app.get('/api/news', async (req, res) => {
+  try {
+    res.json(await freshNews());
+  } catch (e) {
+    res.status(500).json({ error: String(e.message || e) });
+  }
+});
+
 app.get('/api/config', (req, res) => {
   res.json({
     newsModel: config.newsModel,
@@ -237,15 +261,7 @@ app.get('/api/dashboard', async (req, res) => {
   try {
     const kind = req.query.model === 'forest' ? 'forest' : 'ridge';
     await loadData();
-    // Keep news fresh on long-running servers (raw lanes cache 30 min).
-    const newsAge = state.data.raw.news ? Date.now() - Date.parse(state.data.raw.news.fetchedAt) : Infinity;
-    if (newsAge > 35 * 60 * 1000) {
-      try {
-        state.data.raw.news = await fetchNews(config.newsModel);
-      } catch (e) {
-        console.error('news refresh failed:', e.message);
-      }
-    }
+    await freshNews(); // dashboard always ships a tape ≤5 min old
     const [h1, h5, h21, i15, i60] = await Promise.all([
       dailyBundle(kind, 'fwd1'),
       dailyBundle(kind, 'fwd5'),

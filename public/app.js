@@ -689,6 +689,20 @@ async function pollSignal() {
 setInterval(pollSignal, 15000);
 pollSignal();
 
+/* --- 5-min news poll: refresh the tape without redrawing charts --- */
+async function pollNews() {
+  try {
+    const n = await (await fetch('/api/news')).json();
+    if (!n || n.error || !lastData) return;
+    lastData.news = n;
+    renderNews(lastData);
+    renderHero(lastData); // tape badge + score line live on the hero card
+  } catch {
+    /* next tick */
+  }
+}
+setInterval(pollNews, 5 * 60 * 1000);
+
 document.querySelectorAll('.seg-btn').forEach((b) => b.addEventListener('click', () => load(b.dataset.model)));
 
 $('btn-refresh').addEventListener('click', async () => {
