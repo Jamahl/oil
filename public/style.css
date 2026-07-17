@@ -1,9 +1,17 @@
 /* CrudeSignal Lab — tokens per the reference dataviz palette (light + dark selected). */
 /* (journal card) */
 #journal-card { margin-bottom: 16px; }
-#journal-card table.bt td, #journal-card table.bt th { white-space: nowrap; }
-#journal-card { overflow-x: auto; }
 .journal-foot { display: flex; align-items: center; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
+.jintro { color: var(--text-secondary); font-size: 13px; margin: 0 0 12px; }
+.jrow { display: grid; grid-template-columns: 170px 1.2fr 1.2fr 1fr; gap: 14px; padding: 10px 0; border-top: 1px solid var(--grid); align-items: start; }
+.jrow.jsig { background: color-mix(in srgb, var(--series-1) 5%, transparent); border-radius: 8px; padding: 10px 8px; }
+.jrow .jcell.wide { grid-column: 2 / -1; }
+@media (max-width: 900px) { .jrow { grid-template-columns: 1fr; gap: 4px; } }
+.jcell { font-size: 13px; color: var(--text-primary); }
+.jlabel { display: block; font-size: 10.5px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); margin-bottom: 2px; }
+.jhz b { font-size: 14px; }
+.learnbar { height: 5px; border-radius: 3px; background: var(--grid); margin: 6px 0 4px; max-width: 140px; }
+.learnfill { height: 100%; border-radius: 3px; background: var(--series-1); }
 :root {
   --page: #f9f9f7;
   --surface-1: #fcfcfb;

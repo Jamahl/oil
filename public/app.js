@@ -315,40 +315,80 @@ function setStatus(msg, isError = false) {
   el.classList.toggle('error', isError);
 }
 
-/* --- prediction journal --- */
-const HZ_LABELS = { m15: '15 min', h1: '1 hour', d1: '1 day', w1: '1 week', mo1: '1 month' };
+/* --- prediction journal (plain-language scoreboard) --- */
+const HZ_LABELS = { m15: '15-minute', h1: '1-hour', d1: '1-day', w1: '1-week', mo1: '1-month' };
+
+function rangeQuality(cov, resolved) {
+  if (cov == null || resolved < 5) return { txt: 'not enough scored yet', cls: '' };
+  const p = fmt.pct0(cov, 0);
+  if (Math.abs(cov - 0.68) <= 0.07) return { txt: `${p} landed inside the range — on target ✓`, cls: 'good' };
+  if (cov > 0.68) return { txt: `${p} landed inside — ranges too cautious, auto-tightening`, cls: '' };
+  return { txt: `only ${p} landed inside — ranges too tight, auto-widening`, cls: 'bad' };
+}
+
+function arrowQuality(s) {
+  if (!s.dirN || s.dirN < 5) return { txt: 'too few arrows shown to judge', cls: '' };
+  const hit = fmt.pct0(s.dirHitRate, 0);
+  const coin = s.baseUp == null ? '50%' : fmt.pct0(Math.max(s.baseUp, 1 - s.baseUp), 0);
+  const base = { txt: `right ${hit} of the time (coin flip ≈ ${coin}, n=${s.dirN})`, cls: '' };
+  if (s.leanVerdict === 'keep leans') return { txt: base.txt + ' — real edge, trust the arrows', cls: 'good' };
+  if (s.leanVerdict === 'suppress leans') return { txt: base.txt + ' — worse than coin flip, ignore the arrows', cls: 'bad' };
+  if (s.leanVerdict === 'no edge — treat as flat') return { txt: base.txt + ' — no better than chance, context only', cls: '' };
+  return base;
+}
+
+function tuneStatus(cal, minN) {
+  if (!cal || !cal.n) return 'auto-tuning starts after first scored predictions';
+  if (!cal.active) return `auto-tuning warms up at ${minN} scored — has ${cal.n}`;
+  const kPct = Math.round(Math.abs(cal.k - 1) * 100);
+  const kTxt = kPct < 2 ? 'ranges confirmed accurate' : cal.k > 1 ? `ranges widened ${kPct}%` : `ranges tightened ${kPct}%`;
+  const bTxt = Math.abs(cal.bias) >= 0.0005 ? `, targets nudged ${cal.bias > 0 ? 'down' : 'up'} ${fmt.pct0(Math.abs(cal.bias))}` : '';
+  return `auto-tuning ON: ${kTxt}${bTxt}`;
+}
 
 async function loadJournal() {
   try {
     const j = await (await fetch('/api/journal')).json();
     if (j.error) throw new Error(j.error);
+
+    const totalScored = j.stats.totals.resolved;
+    const intro =
+      totalScored === 0
+        ? `Every prediction this page shows gets logged and scored against the real price once its time is up — then the ranges auto-correct from the results. Nothing scored yet: the first 15-minute predictions resolve within the hour; longer horizons take their own duration.`
+        : `Every prediction gets logged, scored against the real price when its time is up, and the results auto-correct the ranges. <b>${totalScored} scored so far</b> (${j.stats.totals.open} waiting).`;
+
     const rows = Object.entries(j.stats.horizons)
       .map(([hz, s]) => {
         const cal = j.calibration[hz] || { k: 1, bias: 0, active: false, n: 0 };
-        const calTxt = cal.active
-          ? `k=${cal.k.toFixed(2)} bias=${fmt.pct(cal.bias, 3)} <span class="good">active</span>`
-          : `k=${(cal.k || 1).toFixed(2)} <span class="news-tags">shadow (n=${cal.n})</span>`;
-        const cover = s.bandCoverage == null ? '—' : fmt.pct0(s.bandCoverage);
-        const coverCls = s.bandCoverage == null ? '' : Math.abs(s.bandCoverage - 0.68) <= 0.07 ? 'good' : 'bad';
-        return `<tr>
-          <td>${HZ_LABELS[hz] || hz}</td>
-          <td>${s.resolved}<div class="note">${s.open} open</div></td>
-          <td>${s.dirHitRate == null ? '—' : fmt.pct0(s.dirHitRate)} <span class="note">vs ${s.baseUp == null ? '—' : fmt.pct0(Math.max(s.baseUp, 1 - s.baseUp))}</span></td>
-          <td class="${coverCls}">${cover} <span class="note">→68%</span></td>
-          <td>${s.meanErr == null ? '—' : fmt.pct(s.meanErr, 3)}</td>
-          <td>${calTxt}</td>
-          <td>${s.leanVerdict}</td>
-        </tr>`;
+        const minN = (j.horizons[hz] && j.horizons[hz].minN) || 50;
+        const prog = Math.min(100, Math.round((cal.n / minN) * 100));
+        const range = rangeQuality(s.bandCoverage, s.resolved);
+        const arrow = arrowQuality(s);
+        return `<div class="jrow">
+          <div class="jcell jhz">
+            <b>${HZ_LABELS[hz] || hz}</b>
+            <div class="learnbar" title="progress toward ${minN} scored predictions (when auto-tuning switches on)"><div class="learnfill" style="width:${prog}%"></div></div>
+            <span class="note">${s.resolved} scored · ${s.open} waiting</span>
+          </div>
+          <div class="jcell"><span class="jlabel">Ranges</span><span class="${range.cls}">${range.txt}</span></div>
+          <div class="jcell"><span class="jlabel">Arrows (▲▼)</span><span class="${arrow.cls}">${arrow.txt}</span></div>
+          <div class="jcell"><span class="jlabel">Self-correction</span><span>${tuneStatus(cal, minN)}</span></div>
+        </div>`;
       })
       .join('');
-    $('journal-body').innerHTML = `<table class="bt">
-      <thead><tr><th>Horizon</th><th>Resolved</th><th>Direction hit</th><th>Band coverage</th><th>Bias</th><th>Calibration</th><th>Lean verdict</th></tr></thead>
-      <tbody>${rows}</tbody></table>`;
+
     const sig = j.signals || {};
-    const sigTxt = sig.n
-      ? ` · signals: ${sig.n} logged (${sig.buys} buy / ${sig.holds} hold / ${sig.sells} sell)${sig.n1h ? `, 1h hit ${fmt.pct0(sig.hit1h)} (n=${sig.n1h})` : ''}${sig.n1d ? `, 1d hit ${fmt.pct0(sig.hit1d)} (n=${sig.n1d})` : ''}`
-      : '';
-    $('journal-meta').textContent = `${j.stats.totals.resolved} resolved · ${j.stats.totals.open} open · ${j.stats.totals.unresolvable} unresolvable · storage: ${j.storage === 'neon' ? 'Neon Postgres' : 'local SQLite'} · logs every 5 min${sigTxt}`;
+    let sigLine = '';
+    if (sig.n) {
+      const parts = [`${sig.n} logged (${sig.buys} buy / ${sig.holds} hold / ${sig.sells} sell)`];
+      if (sig.n1h >= 5) parts.push(`an hour later the call was right ${fmt.pct0(sig.hit1h, 0)} of the time (n=${sig.n1h})`);
+      else parts.push('accuracy appears once ~5 calls have aged an hour');
+      if (sig.n1d >= 5) parts.push(`a day later: ${fmt.pct0(sig.hit1d, 0)} (n=${sig.n1d})`);
+      sigLine = `<div class="jrow jsig"><div class="jcell jhz"><b>BUY/SELL signal</b></div><div class="jcell wide"><span class="jlabel">Track record</span><span>${parts.join(' · ')}</span></div></div>`;
+    }
+
+    $('journal-body').innerHTML = `<p class="jintro">${intro}</p>${rows}${sigLine}`;
+    $('journal-meta').textContent = `stored in ${j.storage === 'neon' ? 'Neon Postgres (cloud)' : 'local SQLite'} · new entries every 5 min while the server runs`;
   } catch (e) {
     $('journal-body').innerHTML = `<p class="note">Journal unavailable: ${e.message}</p>`;
   }
