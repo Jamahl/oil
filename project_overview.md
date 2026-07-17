@@ -7,7 +7,7 @@ Single-user localhost web app: Brent crude price targets at 5 horizons (15m/1h/1
 One Node/Express process (`server.js`, port 4173, no build step) serves a vanilla-JS + Chart.js frontend from `public/`. Data comes from free/keyless feeds (Yahoo, EIA, RSS) plus three keyed services (Parallel, OpenRouter, Capital.com), all disk-cached under `data/`. Model training (ridge closed-form, pure-JS random forest) runs in worker threads so the event loop never blocks. A 5-minute background tick logs predictions to Neon Postgres (or local SQLite), resolves matured ones, and feeds calibration back into the bands.
 
 ```
-   Yahoo Finance    EIA dnav .xls    RSS x7 lanes      Parallel        OpenRouter        Capital.com          Neon PG
+   Yahoo Finance    EIA dnav .xls    RSS x12 lanes      Parallel        OpenRouter        Capital.com          Neon PG
    chart API        WCESTUS1w.xls    GoogleNews etc.   /v1beta/search  chat/completions  /session /markets    DATABASE_URL
        |                 |                |                 |               |                 |                   |
        v                 v                v                 v               v                 v                   |
