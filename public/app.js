@@ -490,13 +490,17 @@ setInterval(pollNews, 5 * 60 * 1000);
 
 /* --- scalp bot --- */
 let botEditing = false;
+const CONF_RANK_TXT = (m) => (m === 'Lean' ? ' (any strength)' : ' (' + m + ' or stronger)');
 const BOT_FIELDS = ['sizeMode', 'positionSize', 'riskAmount', 'tpMode', 'tpValue', 'slMode', 'slValue', 'maxOpenTrades', 'cooldownSec', 'minConfidence', 'dailyLossCap'];
 
 function botConfigForm(c) {
   const sel = (name, opts, cur) =>
     `<select data-bk="${name}">${opts.map((o) => `<option value="${o[0]}" ${o[0] === String(cur) ? 'selected' : ''}>${o[1]}</option>`).join('')}</select>`;
   const num = (name, cur, step = 'any') => `<input data-bk="${name}" type="number" step="${step}" value="${cur}">`;
-  return `<div class="bot-grid">
+  const win = (c.sizeMode === 'fixed' ? c.positionSize : '~') === '~' ? null : c.positionSize * (c.tpMode === 'usd' ? c.tpValue : 0);
+  const loss = win == null ? null : c.positionSize * (c.slMode === 'usd' ? c.slValue : 0);
+  const explain = `<p class="jintro">In plain English: each trade buys or sells <b>${c.positionSize} barrels</b> when the signal fires${CONF_RANK_TXT(c.minConfidence)}. It closes itself at <b>+${(win ?? 0).toFixed(2)} profit</b> (price moves ${c.tpValue} your way) or <b>−${(loss ?? 0).toFixed(2)} loss</b> (${c.slValue} against you). Up to <b>${c.maxOpenTrades} trades</b> can run at once, with a ${Math.round(c.cooldownSec / 60)}-min pause between entries, and the bot stops for the day if it loses ${c.dailyLossCap}.</p>`;
+  return explain + `<div class="bot-grid">
     <span><label>Trade size (barrels)</label>${num('positionSize', c.positionSize, '0.1')}</span>
     <span><label>Take profit ($/barrel)</label>${num('tpValue', c.tpValue, '0.01')}</span>
     <span><label>Stop loss ($/barrel)</label>${num('slValue', c.slValue, '0.01')}</span>
