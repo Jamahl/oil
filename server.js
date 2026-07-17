@@ -461,6 +461,10 @@ app.post('/api/bot/config', (req, res) => {
 app.post('/api/bot/start', (req, res) => {
   try { bot.start(); res.json({ ok: true }); } catch (e) { res.status(400).json({ error: String(e.message || e) }); }
 });
+app.post('/api/bot/manual', async (req, res) => {
+  try { await bot.manual(req.body && req.body.dir === 'SELL' ? 'SELL' : 'BUY', await getLiveSpot()); res.json({ ok: true }); }
+  catch (e) { res.status(400).json({ error: String(e.message || e) }); }
+});
 app.post('/api/bot/stop', (req, res) => { bot.stop(); res.json({ ok: true }); });
 app.post('/api/bot/close-all', async (req, res) => {
   try { await bot.closeAll(); res.json({ ok: true }); } catch (e) { res.status(500).json({ error: String(e.message || e) }); }

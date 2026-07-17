@@ -271,3 +271,8 @@ table.bt tr:last-child td { border-bottom: 0; }
 .bot-var { font-size: 17px; font-weight: 750; color: var(--text-primary); background: color-mix(in srgb, var(--text-primary) 5%, transparent); border-radius: 6px; padding: 1px 7px; margin: 0 2px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .bot-var.win { color: var(--delta-up); background: color-mix(in srgb, var(--delta-up) 9%, transparent); }
 .bot-var.lose { color: var(--delta-down); background: color-mix(in srgb, var(--delta-down) 9%, transparent); }
+
+.btn.pill { border-radius: 999px; font-weight: 700; padding: 5px 14px; }
+.btn.pill.buy { color: #fff; background: var(--delta-up); border-color: transparent; }
+.btn.pill.sell { color: #fff; background: var(--delta-down); border-color: transparent; }
+.btn.pill:hover { filter: brightness(1.1); }

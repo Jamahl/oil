@@ -596,6 +596,12 @@ $('bot-stop').addEventListener('click', async () => {
   botEditing = false;
   pollBot();
 });
+for (const d of ['buy', 'sell'])
+  $('bot-' + d).addEventListener('click', async () => {
+    const r = await fetch('/api/bot/manual', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dir: d.toUpperCase() }) });
+    if (!r.ok) setStatus('Manual trade refused: ' + (await r.json()).error, true); else setStatus(null);
+    pollBot();
+  });
 $('bot-closeall').addEventListener('click', async () => {
   await fetch('/api/bot/close-all', { method: 'POST' });
   pollBot();
