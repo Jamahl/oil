@@ -609,7 +609,11 @@ async function loadJournal() {
     $('journal-body').innerHTML = `<table class="bt">
       <thead><tr><th>Horizon</th><th>Resolved</th><th>Direction hit</th><th>Band coverage</th><th>Bias</th><th>Calibration</th><th>Lean verdict</th></tr></thead>
       <tbody>${rows}</tbody></table>`;
-    $('journal-meta').textContent = `${j.stats.totals.resolved} resolved · ${j.stats.totals.open} open · ${j.stats.totals.unresolvable} unresolvable · storage: ${j.storage === 'neon' ? 'Neon Postgres' : 'local SQLite'} · logs every 5 min while the server runs`;
+    const sig = j.signals || {};
+    const sigTxt = sig.n
+      ? ` · signals: ${sig.n} logged (${sig.buys} buy / ${sig.holds} hold / ${sig.sells} sell)${sig.n1h ? `, 1h hit ${fmt.pct0(sig.hit1h)} (n=${sig.n1h})` : ''}${sig.n1d ? `, 1d hit ${fmt.pct0(sig.hit1d)} (n=${sig.n1d})` : ''}`
+      : '';
+    $('journal-meta').textContent = `${j.stats.totals.resolved} resolved · ${j.stats.totals.open} open · ${j.stats.totals.unresolvable} unresolvable · storage: ${j.storage === 'neon' ? 'Neon Postgres' : 'local SQLite'} · logs every 5 min${sigTxt}`;
   } catch (e) {
     $('journal-body').innerHTML = `<p class="note">Journal unavailable: ${e.message}</p>`;
   }
@@ -654,6 +658,36 @@ async function load(model) {
 }
 
 setInterval(loadJournal, 5 * 60 * 1000);
+
+/* --- realtime BUY/HOLD/SELL signal --- */
+async function pollSignal() {
+  try {
+    const s = await (await fetch('/api/signal')).json();
+    if (s.error) return;
+    const cls = s.signal === 'BUY' ? 'buy' : s.signal === 'SELL' ? 'sell' : 'hold';
+    const pos = Math.max(0, Math.min(100, ((s.bias + 1) / 2) * 100));
+    const comps = s.components
+      .filter((c) => Math.abs(c.score) > 0.02 || c.key === 'news')
+      .sort((a, b) => Math.abs(b.score * b.weight) - Math.abs(a.score * a.weight))
+      .slice(0, 3)
+      .map((c) => {
+        const up = c.score > 0;
+        return `<div class="comp">${c.label}: <b class="${up ? 'up' : 'down'}">${up ? '▲' : '▼'} ${Math.abs(c.score).toFixed(2)}</b>${c.gated ? ' <span class="news-tags">(muted by journal)</span>' : ''}</div>`;
+      })
+      .join('');
+    $('hero-signal').innerHTML = `
+      <div class="label">Signal · ${s.tape} tape${s.confidence ? ` · ${s.confidence} (uncalibrated)` : ''}</div>
+      <div class="sig-word ${cls}">${s.signal}</div>
+      <div class="sig-track"><div class="sig-marker" style="left:calc(${pos}% - 2px)"></div></div>
+      <div class="sig-scale"><span>sell −1</span><span>dead zone ±${s.deadZone}</span><span>+1 buy</span></div>
+      ${comps}
+      <div class="comp note">${escapeHtml(s.caveat)}</div>`;
+  } catch {
+    /* next tick */
+  }
+}
+setInterval(pollSignal, 15000);
+pollSignal();
 
 document.querySelectorAll('.seg-btn').forEach((b) => b.addEventListener('click', () => load(b.dataset.model)));
 

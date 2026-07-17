@@ -90,7 +90,18 @@ h1 span { color: var(--series-1); }
 .status.error { border-color: var(--chip-bad); color: var(--chip-bad); }
 
 /* --- hero --- */
-.hero-row { display: grid; grid-template-columns: 1fr 1.6fr; gap: 10px; margin-bottom: 10px; }
+.hero-row { display: grid; grid-template-columns: 1fr 1.1fr 1.3fr; gap: 10px; margin-bottom: 10px; }
+.hero-sig .sig-word { font-size: 34px; font-weight: 800; letter-spacing: 0.01em; margin: 2px 0; }
+.sig-word.buy { color: var(--delta-up); }
+.sig-word.sell { color: var(--delta-down); }
+.sig-word.hold { color: var(--text-secondary); }
+.sig-track { position: relative; height: 8px; border-radius: 4px; background: linear-gradient(90deg, var(--neg), var(--grid) 42%, var(--grid) 58%, var(--pos)); opacity: 0.85; margin: 8px 0 4px; }
+.sig-marker { position: absolute; top: -3px; width: 4px; height: 14px; border-radius: 2px; background: var(--text-primary); }
+.sig-scale { display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); }
+.hero-sig .comp { font-size: 11px; color: var(--text-secondary); margin-top: 2px; font-variant-numeric: tabular-nums; }
+.hero-sig .comp b.up { color: var(--delta-up); font-weight: 600; }
+.hero-sig .comp b.down { color: var(--delta-down); font-weight: 600; }
+.hero-sig .label { font-size: 12px; color: var(--muted); }
 @media (max-width: 900px) { .hero-row, .grid-news { grid-template-columns: 1fr !important; } .targets-row { grid-template-columns: repeat(2, 1fr) !important; } }
 .hero-price .big { font-size: 40px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
 .hero-price .label { font-size: 12px; color: var(--muted); }

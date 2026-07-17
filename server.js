@@ -11,6 +11,7 @@ const { DEFAULT_MODEL, chatText } = require('./lib/llm');
 const { buildTargets } = require('./lib/targets');
 const capital = require('./lib/capital');
 const journal = require('./lib/journal');
+const { computeSignal } = require('./lib/signal');
 
 const PORT = process.env.PORT || 4173;
 const app = express();
@@ -143,30 +144,66 @@ function intradayBundle(id, label, step) {
 // per 3s at most. Falls back to the freshest Yahoo bar when capital.com is
 // unconfigured or erroring.
 let priceCache = { at: 0, data: null };
+async function getLiveSpot() {
+  if (priceCache.data && Date.now() - priceCache.at < 3000) return priceCache.data;
+  let out = null;
+  if (capital.configured()) {
+    try {
+      out = await capital.snapshot('brent');
+    } catch (e) {
+      console.error('capital price failed:', e.message);
+    }
+  }
+  if (!out) {
+    await loadData();
+    const { raw, ds } = state.data;
+    out = {
+      source: 'yahoo-delayed',
+      mid: raw.i15 ? raw.i15.close[raw.i15.close.length - 1] : ds.brent[ds.brent.length - 1],
+      at: raw.i15 ? raw.i15.dates[raw.i15.dates.length - 1] : ds.dates[ds.dates.length - 1],
+      marketStatus: null,
+      pctChange: null,
+    };
+  }
+  priceCache = { at: Date.now(), data: out };
+  return out;
+}
+
 app.get('/api/price', async (req, res) => {
   try {
-    if (priceCache.data && Date.now() - priceCache.at < 3000) return res.json(priceCache.data);
-    let out = null;
-    if (capital.configured()) {
-      try {
-        out = await capital.snapshot('brent');
-      } catch (e) {
-        console.error('capital price failed:', e.message);
-      }
-    }
-    if (!out) {
-      await loadData();
-      const { raw, ds } = state.data;
-      out = {
-        source: 'yahoo-delayed',
-        mid: raw.i15 ? raw.i15.close[raw.i15.close.length - 1] : ds.brent[ds.brent.length - 1],
-        at: raw.i15 ? raw.i15.dates[raw.i15.dates.length - 1] : ds.dates[ds.dates.length - 1],
-        marketStatus: null,
-        pctChange: null,
-      };
-    }
-    priceCache = { at: Date.now(), data: out };
-    res.json(out);
+    res.json(await getLiveSpot());
+  } catch (e) {
+    res.status(500).json({ error: String(e.message || e) });
+  }
+});
+
+// Realtime BUY/HOLD/SELL combiner — cheap to compute (cached bundles + news +
+// live spot), so it is evaluated fresh on every request.
+let journalStatsCache = null;
+async function currentSignal() {
+  await loadData();
+  const [h1, h5, i15, i60] = await Promise.all([
+    dailyBundle('ridge', 'fwd1'),
+    dailyBundle('ridge', 'fwd5'),
+    intradayBundle('i15', '15m', 400),
+    intradayBundle('i60', '1h', 800),
+  ]);
+  const { raw, vols } = state.data;
+  const live = await getLiveSpot();
+  const bars = raw.i15 ? raw.i15.close : [];
+  return computeSignal({
+    bundles: { h1, h5, i15, i60 },
+    vols,
+    news: { ...(raw.news || {}), llm: raw.news && raw.news.llm },
+    livePrice: live.mid,
+    prevPriceHourAgo: bars.length > 4 ? bars[bars.length - 5] : null,
+    journalStats: journalStatsCache,
+  });
+}
+
+app.get('/api/signal', async (req, res) => {
+  try {
+    res.json(await currentSignal());
   } catch (e) {
     res.status(500).json({ error: String(e.message || e) });
   }
@@ -348,8 +385,11 @@ async function journalTick() {
     if (spot == null) spot = raw.i15 ? raw.i15.close[raw.i15.close.length - 1] : ds.brent[ds.brent.length - 1];
     await journal.logPrice(Date.now(), spot, src);
 
-    const outcome = await journal.resolveDue(resolverFallbackSeries());
+    const fallback = resolverFallbackSeries();
+    const outcome = await journal.resolveDue(fallback);
+    await journal.resolveSignals(fallback);
     journalCalib = await journal.computeCalibration();
+    journalStatsCache = await journal.stats();
 
     const [h1, h5, h21, i15, i60] = await Promise.all([
       dailyBundle('ridge', 'fwd1'),
@@ -371,6 +411,11 @@ async function journalTick() {
       calibration: journalCalib,
     });
     const logged = await journal.logPredictions(targets, spot, 'ridge', news.activity.level);
+    try {
+      await journal.logSignal(await currentSignal());
+    } catch (e) {
+      console.error('signal log failed:', e.message);
+    }
     if (logged || outcome.resolved || outcome.unresolvable) {
       console.log(`journal: +${logged} logged, ${outcome.resolved} resolved, ${outcome.unresolvable} unresolvable, ${outcome.stillOpen} awaiting price`);
     }
@@ -383,7 +428,13 @@ async function journalTick() {
 
 app.get('/api/journal', async (req, res) => {
   try {
-    res.json({ stats: await journal.stats(), calibration: journalCalib, horizons: journal.HORIZONS, storage: await journal.storageKind() });
+    res.json({
+      stats: await journal.stats(),
+      signals: await journal.signalStats(),
+      calibration: journalCalib,
+      horizons: journal.HORIZONS,
+      storage: await journal.storageKind(),
+    });
   } catch (e) {
     res.status(500).json({ error: String(e.message || e) });
   }
