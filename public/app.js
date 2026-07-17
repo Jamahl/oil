@@ -531,6 +531,9 @@ async function pollBot() {
     const envChip = $('bot-env');
     envChip.className = 'chip ' + (b.running ? 'run' : b.halted ? 'halt' : 'off');
     envChip.innerHTML = `<span class="dot"></span>${b.env.toUpperCase()} · ${b.running ? (b.halted ? 'HALTED: ' + b.halted : 'RUNNING') : 'stopped'}`;
+    document.getElementById('tab-demo').classList.toggle('active', b.env !== 'live');
+    document.getElementById('tab-live').classList.toggle('active', b.env === 'live');
+    document.getElementById('bot-card').classList.toggle('live-mode', b.env === 'live');
     $('bot-start').hidden = b.running;
     $('bot-stop').hidden = !b.running;
 
@@ -601,6 +604,12 @@ $('bot-stop').addEventListener('click', async () => {
   botEditing = false;
   pollBot();
 });
+for (const t of ['demo', 'live'])
+  $('tab-' + (t === 'live' ? 'live' : 'demo')).addEventListener('click', async () => {
+    const r = await fetch('/api/bot/env', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ env: t }) });
+    if (!r.ok) { setStatus('Switch refused: ' + (await r.json()).error, true); return; }
+    setStatus(null); botEditing = false; pollBot();
+  });
 for (const d of ['buy', 'sell'])
   $('bot-' + d).addEventListener('click', async () => {
     const r = await fetch('/api/bot/manual', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dir: d.toUpperCase() }) });

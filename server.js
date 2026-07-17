@@ -458,6 +458,10 @@ app.get('/api/bot', async (req, res) => {
 app.post('/api/bot/config', (req, res) => {
   try { res.json({ ok: true, config: bot.setConfig(req.body || {}) }); } catch (e) { res.status(400).json({ error: String(e.message || e) }); }
 });
+app.post('/api/bot/env', (req, res) => {
+  try { bot.switchEnv(req.body && req.body.env === 'live' ? 'live' : 'demo'); res.json({ ok: true }); }
+  catch (e) { res.status(400).json({ error: String(e.message || e) }); }
+});
 app.post('/api/bot/start', (req, res) => {
   try { bot.start(); res.json({ ok: true }); } catch (e) { res.status(400).json({ error: String(e.message || e) }); }
 });
