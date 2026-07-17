@@ -318,12 +318,18 @@ function setStatus(msg, isError = false) {
 /* --- prediction journal (plain-language scoreboard) --- */
 const HZ_LABELS = { m15: '15-minute', h1: '1-hour', d1: '1-day', w1: '1-week', mo1: '1-month' };
 
-function rangeQuality(cov, resolved) {
+function rangeQuality(cov, resolved, cal, minN) {
   if (cov == null || resolved < 5) return { txt: 'not enough scored yet', cls: '' };
   const p = fmt.pct0(cov, 0);
   if (Math.abs(cov - 0.68) <= 0.07) return { txt: `${p} landed inside the range — on target ✓`, cls: 'good' };
-  if (cov > 0.68) return { txt: `${p} landed inside — ranges too cautious, auto-tightening`, cls: '' };
-  return { txt: `only ${p} landed inside — ranges too tight, auto-widening`, cls: 'bad' };
+  // Describe the correction honestly: applied only once tuning is live (minN).
+  const kPct = cal ? Math.round(Math.abs(cal.k - 1) * 100) : 0;
+  const fix = (verb) =>
+    cal && cal.active
+      ? `${verb}ing ${kPct}% now`
+      : `will ${verb} ~${kPct}% once tuning goes live at ${minN} scored`;
+  if (cov > 0.68) return { txt: `${p} landed inside — ranges too cautious; ${fix('tighten')}`, cls: '' };
+  return { txt: `only ${p} landed inside — ranges too tight; ${fix('widen')}`, cls: 'bad' };
 }
 
 function arrowQuality(s) {
@@ -362,7 +368,7 @@ async function loadJournal() {
         const cal = j.calibration[hz] || { k: 1, bias: 0, active: false, n: 0 };
         const minN = (j.horizons[hz] && j.horizons[hz].minN) || 50;
         const prog = Math.min(100, Math.round((cal.n / minN) * 100));
-        const range = rangeQuality(s.bandCoverage, s.resolved);
+        const range = rangeQuality(s.bandCoverage, s.resolved, cal, minN);
         const arrow = arrowQuality(s);
         return `<div class="jrow">
           <div class="jcell jhz">
