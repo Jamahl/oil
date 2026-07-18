@@ -329,3 +329,10 @@ The app is now instrument-segregated end to end; `brent` and `btc` share code, n
 - **Bot**: `bot.js:createBot(inst)` factory — per-instrument state objects, files (`bot_state_btc*.json`, `bot_env_btc.txt`), tick loops, env selection. All-time `stats` {pnl, trades, winRate} from the full persisted history (cap 1000) — always in `/api/bot`; full list via `/api/bot/history`.
 - **Server/UI**: every relevant route takes `?instrument=` (default `brent`, old URLs unchanged); per-instrument model caches, price memos, journal ticks. UI: Brent|Bitcoin nav beside the h1 → full refetch; oil-only cards hide on null payload fields; per-instrument price decimals (`priceDp`); bot card gains the always-visible stats strip + "view full history" fold.
 - **Stats gotcha**: `stats` reads the *current env's* state file — the Brent live tab shows 0 trades until real trades exist; the demo history lives on the Demo tab.
+
+## 13. Operating rules & latest additions (2026-07-18)
+
+- **HUMAN-ONLY LIVE ARMING (owner's standing order):** no automation, agent, or restart sequence may ever start a live-env bot. Only the user's own Start click arms real money. After any restart/rebuild: re-start demo bots if they were running; leave live bots STOPPED and report their state. (Bots already never auto-resume; this rule additionally forbids programmatic re-arming.)
+- **Aggregate unrealized P/L**: `status()` returns top-level `unrealizedPnl` and `stats.unrealizedPnl` (sum of open trades' live mark-to-market, 0 when flat/no spot); rendered null-safely in the bot stats strip next to all-time realized figures.
+- **Perth timestamps**: trade history + activity log render via `perthTime()` (Australia/Perth, 24h) regardless of browser locale.
+- **In flight**: "CrudeSignal Terminal" premium reskin (comp in ~/Downloads zip) being implemented as a skin over the existing contracts — design law, glance tiers, live-data choreography and all element ids preserved; both themes; palette re-validated.
