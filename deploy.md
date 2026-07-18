@@ -43,6 +43,14 @@ DATABASE_URL=postgresql://…@….neon.tech/neondb?sslmode=require   # Neon proj
 chmod 600 /opt/oil-tracker/.env
 ```
 
+> **One Capital.com API key per running instance.** Capital invalidates the
+> previous session whenever the same key opens a new one — if the VPS and a
+> local dev server share a key they kick each other's sessions in a loop
+> (symptom: endless `reconcile failed: capital login throttled` / 401 storms,
+> and the `capital[env]: sessions keep dying seconds after login` warning).
+> Create a second API key in the Capital.com dashboard for local dev, or stop
+> the local server while the VPS is running.
+
 ## 4. systemd service
 
 `/etc/systemd/system/oil-tracker.service`:
