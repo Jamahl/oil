@@ -594,7 +594,10 @@ async function pollBot() {
       `<span class="bs-label">All-time (${b.env})</span>` +
       `<b class="${st.pnl > 0 ? 'good' : st.pnl < 0 ? 'bad' : ''}">P/L $${st.pnl.toFixed(2)}</b><span class="bs-sep">·</span>` +
       `<span>${st.trades} trade${st.trades === 1 ? '' : 's'}</span><span class="bs-sep">·</span>` +
-      `<span>${st.winRate == null ? 'no wins scored yet' : Math.round(st.winRate * 100) + '% wins'}</span>`;
+      `<span>${st.winRate == null ? 'no wins scored yet' : Math.round(st.winRate * 100) + '% wins'}</span>` +
+      (b.unrealizedPnl != null && b.open.length
+        ? `<span class="bs-sep">·</span><span>open <b class="${b.unrealizedPnl > 0 ? 'good' : b.unrealizedPnl < 0 ? 'bad' : ''}">$${b.unrealizedPnl.toFixed(2)}</b> unrealized</span>`
+        : '');
 
     const openRows = b.open
       .map(
