@@ -555,11 +555,11 @@ app.get('/api/bot', async (req, res) => {
   try {
     const instrument = instFromReq(req);
     await bots[instrument].reconcile(priceCaches[instrument].data).catch(() => {});
-    res.json(bots[instrument].status(priceCaches[instrument].data));
+    res.json(await bots[instrument].status(priceCaches[instrument].data));
   } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
 });
-app.get('/api/bot/history', (req, res) => {
-  try { res.json(botFor(req).history()); } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
+app.get('/api/bot/history', async (req, res) => {
+  try { res.json(await botFor(req).history()); } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
 });
 app.post('/api/bot/config', (req, res) => {
   try {
@@ -635,7 +635,10 @@ app.get('/api/journal/insight', async (req, res) => {
 
 const srv = app.listen(PORT, () => {
   console.log(`CrudeSignal Lab -> http://localhost:${PORT}`);
-  loadData('brent')
+  // Hydrate each bot's open working-set from the shared DB ledger (file fallback
+  // is handled inside init); trade history then travels between machines.
+  Promise.all(INSTRUMENT_IDS.map((id) => bots[id].init()))
+    .then(() => loadData('brent'))
     .then(() =>
       coreBundles('brent', 'ridge')
     )
