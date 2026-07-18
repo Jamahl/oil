@@ -11,7 +11,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
-const { yahooDaily, yahooSeries, eiaCrudeStocks } = require('../lib/fetchers');
+const { yahooDaily, yahooSeries, eiaCrudeStocks, eiaWeeklySeries } = require('../lib/fetchers');
 const { buildDataset, buildIntradayRows } = require('../lib/data');
 const { fitFnFor, walkForward, evaluate } = require('../lib/model');
 
@@ -59,16 +59,23 @@ function gitState() {
   }
 }
 
-async function loadDataset(which) {
+async function loadDataset(which, featureKeys) {
   if (which === 'daily') {
-    const [brent, wti, dxy, ovx, inv] = await Promise.all([
+    const warn = (id) => (e) => (console.warn(`feed ${id} failed: ${e.message}`), null);
+    const [brent, wti, dxy, ovx, inv, cush, gas, dist, util, spr] = await Promise.all([
       yahooDaily('BZ=F'),
       yahooDaily('CL=F'),
       yahooDaily('DX-Y.NYB'),
-      yahooDaily('^OVX').catch(() => null),
-      eiaCrudeStocks().catch(() => null),
+      yahooDaily('^OVX').catch(warn('OVX')),
+      eiaCrudeStocks().catch(warn('EIA crude')),
+      // WPSR extras — research-only until a candidate PROMOTEs (see RESEARCH.md)
+      eiaWeeklySeries('W_EPC0_SAX_YCUOK_MBBL').catch(warn('EIA cushing')),
+      eiaWeeklySeries('WGTSTUS1').catch(warn('EIA gasoline')),
+      eiaWeeklySeries('WDISTUS1').catch(warn('EIA distillate')),
+      eiaWeeklySeries('WPULEUS3').catch(warn('EIA utilization')),
+      eiaWeeklySeries('WCSSTUS1').catch(warn('EIA SPR')),
     ]);
-    const ds = buildDataset({ brent, wti, dxy, ovx, inv });
+    const ds = buildDataset({ brent, wti, dxy, ovx, inv, cush, gas, dist, util, spr }, { featureKeys });
     return { rows: ds.rows, features: ds.features, barDates: ds.dates, holdoutStart: HOLDOUT_START.daily };
   }
   const series = await yahooSeries('BZ=F', { range: '730d', interval: '1h', ttlMs: 2 * 60 * 60 * 1000 });
@@ -129,6 +136,7 @@ async function runTrial(args) {
   const model = args.model || 'ridge';
   const horizons = (args.horizons || 'fwd1,fwd5,fwd21').split(',');
   const cost = args.cost ? parseFloat(args.cost) : undefined;
+  const featureKeys = args.features && args.features !== true ? args.features.split(',') : undefined;
 
   const journal = readJournal();
   const id = 't' + String(journal.filter((e) => e.mode === 'tune').length + 1).padStart(3, '0');
@@ -139,7 +147,7 @@ async function runTrial(args) {
   for (const hz of horizons) {
     const cfg = HORIZONS[hz];
     if (!cfg) throw new Error(`unknown horizon ${hz} (use ${Object.keys(HORIZONS).join(', ')})`);
-    const ds = await loadDataset(cfg.dataset);
+    const ds = await loadDataset(cfg.dataset, featureKeys);
     const rows = tuneRows(ds.rows, ds.barDates, cfg.key, cfg.bars, ds.holdoutStart);
     const t0 = Date.now();
     const preds = walkForward(rows, cfg.key, fitFnFor(model), { initialFrac: 0.6, step: cfg.step });
@@ -191,7 +199,8 @@ async function runHoldout(args) {
   const verdicts = {};
   for (const hz of Object.keys(trial.metrics)) {
     const cfg = HORIZONS[hz];
-    const ds = await loadDataset(cfg.dataset);
+    // Replay the trial's exact feature set (daily; intraday features are fixed).
+    const ds = await loadDataset(cfg.dataset, cfg.dataset === 'daily' ? trial.features : undefined);
     const preds = walkForward(ds.rows, cfg.key, fitFnFor(trial.model), { initialFrac: 0.6, step: cfg.step });
     const bt = evaluate(ds.rows, preds, cfg.key, cfg.stride, { from: ds.holdoutStart, costPerSide: trial.costPerSide });
     metrics[hz] = metricsOf(bt);
@@ -267,7 +276,7 @@ function runList() {
   else if (cmd === 'noise') await runNoise(args);
   else if (cmd === 'list') runList();
   else {
-    console.log('usage: research.js trial --desc "..." [--horizons fwd1,fwd5,fwd21|1h] [--model ridge|forest] [--cost 0.0003]');
+    console.log('usage: research.js trial --desc "..." [--horizons fwd1,fwd5,fwd21|1h] [--model ridge|forest] [--cost 0.0003] [--features k1,k2,...]');
     console.log('       research.js holdout <trialId>   (ONE SHOT per candidate)');
     console.log('       research.js noise [--horizons fwd1] [--shifts 20]');
     console.log('       research.js list');

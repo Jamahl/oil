@@ -58,10 +58,27 @@ work is a bug, not an edge.
   live-trading surface. Live trading is human-only, always.
 - Worktree-isolate experiments; the journal is the shared state.
 
-## Current state
+## Current state (2026-07-18)
 
-- `t001` = baseline (11 daily features, ridge) — the comparator every candidate
-  must beat. Holdout-scored once as the reference point.
-- Backlog priority (expected value order, from README): term structure (M1−M2,
-  M1−M6) > EIA extras (Cushing, products, runs) + surprise-vs-consensus > CFTC
-  COT > event flags.
+- `t001`/`t002` = baselines (11 daily features / 4 intraday features, ridge) —
+  the comparators. Both **KILLED on holdout** (h001/h002): tune-window edge did
+  not survive 2024-07 onward; the 1h momentum tilt dies net of costs.
+- Noise bar (fwd1, K=20): median |IC| 0.038, best-of-20 = 0.104. Tune ICs at
+  those levels are selection, not signal.
+- `t003` WPSR extras (Cushing/gasoline/distillate/utilization) — killed at tune:
+  not better than baseline, fwd5 IC collapsed vs t001. No holdout spent.
+- `t004` SPR 4w flow ablation (baseline + `sprChg4`) — killed at tune: negative
+  hit edges everywhere, fwd5 identical to baseline. No holdout spent.
+- All WPSR extra features remain implemented (`lib/data.js`, research loader) for
+  reuse in combinations; use `--features` for ablations.
+
+## Backlog (expected value order)
+
+1. **CFTC COT positioning** (crowdedness/squeeze) — free weekly CSV; join on
+   publish date (Friday for Tuesday data). Next candidate up.
+2. **Term structure** (M1−M2 / M1−M6) — best literature support but **blocked on
+   data**: Yahoo drops expired contracts, so no free 10y curve history found yet.
+   Needs a curve source (Nasdaq Data Link continuous contracts, or start
+   archiving live M1/M2 forward from here).
+3. Event flags: OPEC meeting calendar, OVX-percentile regime.
+4. Weekly-horizon model on Friday-to-Friday non-overlapping returns.
