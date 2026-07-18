@@ -13,6 +13,7 @@
   "dependencies": {
     "express": "^5.2.1",
     "express-basic-auth": "^1.2.1",
+    "express-rate-limit": "^8.6.0",
     "express-session": "^1.19.0",
     "ml-random-forest": "^2.1.0",
     "pg": "^8.22.0",

@@ -733,10 +733,10 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Catch-all for client-side routing (SPA)
-app.get('*', (req, res) => {
+// Catch-all for client-side routing (SPA) and fallback 404
+app.use((req, res) => {
   // Only serve index.html for client-side routes if not an API request
-  if (!req.path.startsWith('/api/') && !req.path.startsWith('/public/') && 
+  if (!req.path.startsWith('/api/') && !req.path.startsWith('/public/') && \
       req.path !== '/login' && req.path !== '/logout' && req.path !== '/webhook' && req.path !== '/health') {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
   } else {
