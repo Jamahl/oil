@@ -318,3 +318,14 @@ Roadmap (README "Ideas for next", with plug-in points):
 | Bot: real partial-close (TP1) instead of banker/runner split | needs opposite-order handling on Capital; the split is the current workaround |
 
 Already shipped from the original roadmap: the **prediction journal** (`lib/journal.js`) and **term structure** (`lib/curve.js`, the PRD's C1 signal — now both a KPI and the never-damped curve component of the combiner).
+
+## 12. Multi-instrument architecture (2026-07-18)
+
+The app is now instrument-segregated end to end; `brent` and `btc` share code, never state.
+
+- **`lib/instruments.js` is the only home of instrument literals**: Capital epic (`OIL_BRENT` / `BTCUSD`), Yahoo symbols (`BZ=F` / `BTC-USD`), news packs (feeds, keyword tiers — btc tier-1 uses word-boundary RegExps for `sec`/`ban` — LLM persona + prompt version + cache prefixes), bot defaults (btc uses pct-mode TP/SL 0.5%/0.7%: usd-mode's $20 cap can never pass the spread rail at a ~$50 BTC spread), size grid (`sizeDecimals`, brent 0.1 bbl / btc 0.0001 BTC), state-file names, and `liveLocked` (btc is HARD demo-only — live switch throws, `allowLive` patches are neutralized).
+- **Models**: btc daily horizons use `data.js:buildGenericDailyRows` (momentum 1/5/21d + vol21); intraday reuses `buildIntradayRows`; btc signal = 4 components (no curve). Oil fundamentals (curve/EIA/OVX/DXY/WTI) never load for btc.
+- **Journal**: `instrument` column on all four tables; `price_log` PK `(instrument, ts)`, `signals` PK `(instrument, at)`; idempotent migrations in both drivers (pg information_schema check; sqlite table rebuild); every query instrument-filtered; calibration/stats per instrument. Migration verified: 866 legacy rows tagged `brent`, baseline `/api/journal` identical.
+- **Bot**: `bot.js:createBot(inst)` factory — per-instrument state objects, files (`bot_state_btc*.json`, `bot_env_btc.txt`), tick loops, env selection. All-time `stats` {pnl, trades, winRate} from the full persisted history (cap 1000) — always in `/api/bot`; full list via `/api/bot/history`.
+- **Server/UI**: every relevant route takes `?instrument=` (default `brent`, old URLs unchanged); per-instrument model caches, price memos, journal ticks. UI: Brent|Bitcoin nav beside the h1 → full refetch; oil-only cards hide on null payload fields; per-instrument price decimals (`priceDp`); bot card gains the always-visible stats strip + "view full history" fold.
+- **Stats gotcha**: `stats` reads the *current env's* state file — the Brent live tab shows 0 trades until real trades exist; the demo history lives on the Demo tab.
