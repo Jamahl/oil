@@ -7,7 +7,8 @@
   "private": true,
   "scripts": {
     "start": "node server.js",
-    "smoke": "node scripts/smoke.js"
+    "smoke": "node scripts/smoke.js",
+    "import-bot-history": "node scripts/import_bot_history.js"
   },
   "license": "UNLICENSED",
   "dependencies": {
