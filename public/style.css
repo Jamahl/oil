@@ -223,9 +223,15 @@ a:hover { text-decoration: underline; }
   background: var(--head); padding: 5px 12px;
   font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
   color: var(--accent);
+  white-space: nowrap; overflow: hidden;
 }
-.secnum { color: var(--faint); font-weight: 700; letter-spacing: 0; }
-.panel-meta { margin-left: auto; color: var(--faint); font-weight: 600; letter-spacing: 0.06em; text-align: right; }
+.secnum { color: var(--faint); font-weight: 700; letter-spacing: 0; flex-shrink: 0; }
+.panel-head > span:not(.panel-meta) { white-space: nowrap; }
+.panel-meta {
+  margin-left: auto; color: var(--faint); font-weight: 600; letter-spacing: 0.06em;
+  text-align: right; flex: 0 1 auto; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 .panel-body { padding: 10px 12px 12px; min-width: 0; }
 .panel-sig { border-left: 2px solid var(--accent); }
 
@@ -319,7 +325,7 @@ a:hover { text-decoration: underline; }
 /* ---------- 05 TARGETS (cards regridded as terminal table rows) ---------- */
 .targets-colhead, .target {
   display: grid;
-  grid-template-columns: 52px 1fr 1.6fr 118px 96px;
+  grid-template-columns: 80px 1fr 1.6fr 126px 88px;
   gap: 0 12px;
   align-items: baseline;
 }
