@@ -1,0 +1,19 @@
+{
+  "name": "crudesignal-lab",
+  "version": "0.1.0",
+  "description": "Oil price prediction model lab — free data (Yahoo, EIA), ridge + random forest, walk-forward backtest, localhost dashboard",
+  "main": "server.js",
+  "type": "commonjs",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "smoke": "node scripts/smoke.js",
+    "research": "node scripts/research.js"
+  },
+  "license": "UNLICENSED",
+  "dependencies": {
+    "express": "^5.2.1",
+    "ml-random-forest": "^2.1.0",
+    "xlsx": "^0.18.5"
+  }
+}

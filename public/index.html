@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CrudeSignal Lab</title>
+<link rel="stylesheet" href="style.css">
+<script src="vendor/chart.umd.min.js"></script>
+</head>
+<body>
+<div class="wrap" id="app">
+
+  <header>
+    <div class="brand">
+      <h1>CrudeSignal <span>Lab</span></h1>
+      <p class="tagline">Brent price targets from free data — honest ranges, not oracle calls</p>
+    </div>
+    <div class="controls">
+      <span id="data-ok" class="chip"><span class="dot"></span>data</span>
+      <button id="btn-refresh" class="btn">Refresh</button>
+    </div>
+  </header>
+
+  <div id="status" class="status" hidden></div>
+
+  <section class="hero-row">
+    <div class="card hero-price" id="hero-price"></div>
+    <div class="card hero-state" id="hero-state"></div>
+  </section>
+
+  <section id="targets" class="targets-row"></section>
+  <p class="note center" id="targets-note"></p>
+
+  <section class="grid-news">
+    <div class="card" id="news-card">
+      <div class="news-head">
+        <h2>What's moving oil <span class="unit">last 48h · Bloomberg / Reuters / Guardian / CNBC / Al Jazeera / OilPrice + Parallel</span></h2>
+        <div class="llm-config">
+          <span id="llm-status" class="chip"><span class="dot"></span>AI</span>
+          <input id="inp-llm" list="llm-models" placeholder="openrouter model slug" spellcheck="false">
+          <datalist id="llm-models">
+            <option value="poolside/laguna-xs-2.1:free"></option>
+            <option value="meta-llama/llama-3.3-70b-instruct:free"></option>
+            <option value="deepseek/deepseek-chat-v3-0324:free"></option>
+            <option value="google/gemma-3-27b-it:free"></option>
+          </datalist>
+          <button id="btn-llm" class="btn small">Apply</button>
+        </div>
+      </div>
+      <div id="llm-read" class="llm-read" hidden></div>
+      <div id="news-list"></div>
+    </div>
+    <div class="card chart-card">
+      <h2>Brent — last few sessions <span class="unit">15-minute bars</span></h2>
+      <div class="chart-box"><canvas id="ch-intraday"></canvas></div>
+    </div>
+  </section>
+
+  <section class="grid-2">
+    <div class="card chart-card">
+      <h2>Brent — last 2 years <span class="unit">$/bbl daily</span></h2>
+      <div class="chart-box short"><canvas id="ch-price"></canvas></div>
+    </div>
+    <div class="card chart-card">
+      <h2>US crude stocks (EIA, excl SPR) <span class="unit">million bbl · weekly</span></h2>
+      <div class="chart-box shorter"><canvas id="ch-inv-level"></canvas></div>
+      <div class="chart-box shorter"><canvas id="ch-inv-chg"></canvas></div>
+      <div class="legend" id="lg-inv"></div>
+    </div>
+  </section>
+
+  <section id="kpis" class="kpi-row"></section>
+
+  <details id="advanced" class="card advanced">
+    <summary>Advanced — models, backtests, correlations</summary>
+    <div class="adv-body">
+      <div class="adv-controls">
+        <div class="seg" role="group" aria-label="Model">
+          <button class="seg-btn active" data-model="ridge">Ridge</button>
+          <button class="seg-btn" data-model="forest">Random forest</button>
+        </div>
+        <div id="health" class="health-row"></div>
+      </div>
+
+      <section class="bias-row">
+        <div class="card bias-card" id="bias-1d"></div>
+        <div class="card bias-card" id="bias-5d"></div>
+        <div class="card" id="drivers-card"></div>
+      </section>
+
+      <section class="grid-2">
+        <div class="card chart-card">
+          <h2>Model equity — sign strategy vs long Brent <span class="unit">growth of $1, out-of-sample, no costs</span></h2>
+          <div class="chart-box"><canvas id="ch-equity"></canvas></div>
+          <div class="legend" id="lg-equity"></div>
+        </div>
+        <div class="card chart-card">
+          <h2>WTI − Brent spread <span class="unit">$/bbl</span></h2>
+          <div class="chart-box"><canvas id="ch-spread"></canvas></div>
+        </div>
+      </section>
+
+      <section class="grid-2">
+        <div class="card chart-card">
+          <h2>Feature ↔ next-5d return correlation <span class="unit">full sample</span></h2>
+          <div class="chart-box tall"><canvas id="ch-corr"></canvas></div>
+          <div class="legend" id="lg-corr"></div>
+        </div>
+        <div class="card chart-card">
+          <h2>Ridge weights — 5d model <span class="unit">standardized</span></h2>
+          <div class="chart-box tall"><canvas id="ch-weights"></canvas></div>
+          <div id="weights-note" class="note" hidden></div>
+        </div>
+      </section>
+
+      <section class="grid-2">
+        <div class="card chart-card">
+          <h2>Predicted vs realized — 5d horizon <span class="unit">out-of-sample</span></h2>
+          <div class="chart-box"><canvas id="ch-scatter"></canvas></div>
+        </div>
+        <div class="card">
+          <h2>Backtest scorecard</h2>
+          <div id="bt-table"></div>
+        </div>
+      </section>
+
+      <div class="method">
+        <h2>Method & caveats</h2>
+        <div id="method"></div>
+      </div>
+    </div>
+  </details>
+
+</div>
+<script src="app.js"></script>
+</body>
+</html>
