@@ -16,6 +16,10 @@ const api = (path) => path + (path.includes('?') ? '&' : '?') + 'instrument=' + 
 // Price decimal places for the active instrument (brent 2, btc 0).
 const priceDp = () => (lastData && lastData.priceDp != null ? lastData.priceDp : 2);
 
+// All bot-card timestamps display in Perth time regardless of browser locale.
+const perthTime = (iso) =>
+  new Date(iso).toLocaleTimeString('en-AU', { timeZone: 'Australia/Perth', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+
 const fmt = {
   usd: (v, dp = 2) => (v == null ? '—' : '$' + v.toLocaleString(undefined, { minimumFractionDigits: dp, maximumFractionDigits: dp })),
   num: (v, dp = 2) => (v == null ? '—' : v.toFixed(dp)),
@@ -560,7 +564,7 @@ function closedTableHtml(list) {
   return `<table class="bt"><thead><tr><th>Closed</th><th>Dir</th><th>Size</th><th>Entry</th><th>Exit</th><th>P/L</th><th>Why</th></tr></thead><tbody>${list
     .map(
       (t) =>
-        `<tr><td>${new Date(t.closedAt).toLocaleTimeString()}</td><td>${t.env === 'live' ? '<span class="envtag real">REAL</span> ' : ''}${t.dir || '—'}</td><td>${t.size == null ? '—' : t.size}</td><td>${t.entry == null ? '—' : '$' + t.entry.toFixed(2)}</td><td>${t.exit == null ? '—' : '$' + t.exit.toFixed(2)}</td><td class="${t.pnl > 0 ? 'good' : 'bad'}">$${t.pnl == null ? '—' : t.pnl.toFixed(2)}</td><td class="note">${escapeHtml(t.reason || '')}</td></tr>`
+        `<tr><td>${perthTime(t.closedAt)}</td><td>${t.env === 'live' ? '<span class="envtag real">REAL</span> ' : ''}${t.dir || '—'}</td><td>${t.size == null ? '—' : t.size}</td><td>${t.entry == null ? '—' : '$' + t.entry.toFixed(2)}</td><td>${t.exit == null ? '—' : '$' + t.exit.toFixed(2)}</td><td class="${t.pnl > 0 ? 'good' : 'bad'}">$${t.pnl == null ? '—' : t.pnl.toFixed(2)}</td><td class="note">${escapeHtml(t.reason || '')}</td></tr>`
     )
     .join('')}</tbody></table>`;
 }
@@ -610,7 +614,7 @@ async function pollBot() {
       ? `The bot is <b class="good">ON</b> (${b.env === 'live' ? '<b class="bad">REAL money</b>' : 'demo money'}). Today it has banked <b class="${dayCls === 'down' ? 'bad' : 'good'}">${b.dayPnl.toFixed(2)}\</b> from ${b.closedCount} finished trade${b.closedCount === 1 ? '' : 's'} (${wins} won). ${b.open.length ? `${b.open.length} trade${b.open.length > 1 ? 's are' : ' is'} still open, currently ${floating >= 0 ? 'up' : 'down'} ${Math.abs(floating).toFixed(2)} — each closes itself at its take-profit or stop.` : 'No trades open right now.'}${b.waiting ? ` <b>Waiting: ${escapeHtml(b.waiting)}.</b>` : ''}`
       : `The bot is <b>OFF</b>. Press Start and it will trade the signal automatically with ${b.env === 'live' ? '<b class="bad">REAL money</b>' : 'demo money'}.`;
     const stats = `<p class="jintro">${plain}</p>`;
-    const events = `<div class="bot-events">${b.events.map((e) => `${new Date(e.at).toLocaleTimeString()} — ${escapeHtml(e.msg)}`).join('<br>')}</div>`;
+    const events = `<div class="bot-events">${b.events.map((e) => `${perthTime(e.at)} — ${escapeHtml(e.msg)}`).join('<br>')}</div>`;
 
     const closedTable = closedTableHtml(b.closed);
     const histCtl = b.closedCount
