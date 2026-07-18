@@ -522,7 +522,10 @@ app.get('/api/bot/history', (req, res) => {
   try { res.json(botFor(req).history()); } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
 });
 app.post('/api/bot/config', (req, res) => {
-  try { res.json({ ok: true, config: botFor(req).setConfig(req.body || {}) }); } catch (e) { res.status(400).json({ error: String(e.message || e) }); }
+  try {
+    const { instrument: _inst, ...patch } = req.body || {}; // routing key, not a config field
+    res.json({ ok: true, config: botFor(req).setConfig(patch) });
+  } catch (e) { res.status(400).json({ error: String(e.message || e) }); }
 });
 app.post('/api/bot/env', (req, res) => {
   try { botFor(req).switchEnv(req.body && req.body.env === 'live' ? 'live' : 'demo'); res.json({ ok: true }); }

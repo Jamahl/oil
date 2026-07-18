@@ -331,3 +331,18 @@ table.bt { font-size: 11.5px; } table.bt th, table.bt td { padding: 3px 6px !imp
 
 .seg-btn.livetab.active { background: var(--delta-down); }
 #bot-card.live-mode { border-color: color-mix(in srgb, var(--delta-down) 45%, var(--border)); }
+
+/* instrument nav (header) + demo-locked Real tab */
+.brand { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.brand .tagline { flex-basis: 100%; margin: 2px 0 0; }
+#inst-nav { margin: 0; }
+.seg-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* bot all-time performance strip — always visible, running or stopped */
+.bot-stats { display: flex; align-items: center; gap: 7px; font-size: 11.5px; font-variant-numeric: tabular-nums; color: var(--muted); margin: 2px 0 6px; }
+.bot-stats b { font-size: 12.5px; }
+.bot-stats .bs-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.07em; }
+.bot-stats .bs-sep { opacity: 0.5; }
+
+/* full trade history fold */
+.bot-hist-scroll { max-height: 320px; overflow-y: auto; }

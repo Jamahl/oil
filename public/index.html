@@ -13,7 +13,11 @@
   <header>
     <div class="brand">
       <h1>CrudeSignal <span>Lab</span></h1>
-      <p class="tagline">Brent price targets from free data — honest ranges, not oracle calls</p>
+      <div class="seg" id="inst-nav">
+        <button id="inst-brent" class="seg-btn active">Brent</button>
+        <button id="inst-btc" class="seg-btn">Bitcoin</button>
+      </div>
+      <p class="tagline" id="tagline">Price targets from free data — honest ranges, not oracle calls</p>
     </div>
     <div class="controls">
       <span id="data-ok" class="chip"><span class="dot"></span>data</span>
@@ -47,13 +51,14 @@
         <button id="bot-closeall" class="btn small">Close all</button>
       </div>
     </div>
+    <div id="bot-stats" class="bot-stats" hidden></div>
     <div id="bot-body"><p class="note">Loading bot…</p></div>
   </section>
 
   <section class="grid-news">
     <div class="card" id="news-card">
       <div class="news-head">
-        <h2>What's moving oil <span class="unit">newest first · updates every 5 min · Bloomberg / Reuters / Guardian / CNBC / Al Jazeera / OilPrice / Rigzone / World Oil / gCaptain / EIA / Investing.com + Parallel</span></h2>
+        <h2><span id="hd-news">What's moving oil</span> <span class="unit" id="news-sources">newest first · updates every 5 min</span></h2>
         <div class="llm-config">
           <span id="llm-status" class="chip"><span class="dot"></span>AI</span>
           <input id="inp-llm" list="llm-models" placeholder="openrouter model slug" spellcheck="false">
@@ -70,17 +75,17 @@
       <div id="news-list"></div>
     </div>
     <div class="card chart-card">
-      <h2>Brent — last few sessions <span class="unit">15-minute bars</span></h2>
+      <h2><span id="hd-intraday">Brent — last few sessions</span> <span class="unit">15-minute bars</span></h2>
       <div class="chart-box"><canvas id="ch-intraday"></canvas></div>
     </div>
   </section>
 
-  <section class="grid-2">
+  <section class="grid-2" id="grid-daily">
     <div class="card chart-card">
-      <h2>Brent — last 2 years <span class="unit">$/bbl daily</span></h2>
+      <h2><span id="hd-daily">Brent — last 2 years</span> <span class="unit" id="hd-daily-unit">$/bbl daily</span></h2>
       <div class="chart-box short"><canvas id="ch-price"></canvas></div>
     </div>
-    <div class="card chart-card">
+    <div class="card chart-card" id="card-inventory">
       <h2>US crude stocks (EIA, excl SPR) <span class="unit">million bbl · weekly</span></h2>
       <div class="chart-box shorter"><canvas id="ch-inv-level"></canvas></div>
       <div class="chart-box shorter"><canvas id="ch-inv-chg"></canvas></div>
