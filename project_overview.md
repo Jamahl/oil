@@ -49,17 +49,18 @@ One Node/Express process (`server.js`, port 4173, no build step) serves a vanill
 | `lib/model.js` | `fitRidge` (closed-form + λ), `fitForest`, `walkForward`, `evaluate`, `calibrateBuckets`, `computeBundle`; `HORIZON_BARS` (+`fwd2`) |
 | `lib/model-worker.js` | 8-line worker-thread shim: `computeBundle(workerData)` → `parentPort.postMessage` |
 | `lib/signal.js` | `computeSignal`: 5-component BUY/HOLD/SELL combiner (intraday/daily/news/momentum/curve), tape-dependent weights, journal verdict gates |
-| `lib/journal.js` | Prediction + signal journal: dual pg/sqlite driver, DDL, `logPredictions`, `resolveDue`, `logSignal`/`resolveSignals`/`signalStats`, `computeCalibration`, `stats`, `HORIZONS` (m15…mo1 incl `m30`) |
-| `lib/bot.js` | Scalp bot: config/validation, entry gates, sizing, banker+runner split, `openPosition` with broker SL/TP, `reconcile`, `manual`, `switchEnv`, atomic state persistence (per-env files + `.bak`) |
+| `lib/journal.js` | Prediction + signal journal: dual pg/sqlite driver (`getDriver`, **exported**), DDL (incl. the `bot_trades` ledger, §6), `logPredictions`, `resolveDue`, `logSignal`/`resolveSignals`/`signalStats`, `computeCalibration`, `stats`, `HORIZONS` (m15…mo1 incl `m30`) |
+| `lib/bot.js` | Scalp bot: config/validation, entry gates, sizing, banker+runner split, `openPosition` with broker SL/TP, `reconcile`, `manual`, `switchEnv`, atomic state persistence (per-env files + `.bak`); **dual-writes trades to the `bot_trades` DB table** and reads history/stats/open-set back from it (`init`/`status`/`history`), file as outage fallback |
 | `public/index.html` | Dashboard skeleton: hero row, 6 target cards, scalp strip, bot card (Demo/Real tabs), news card + LLM config, charts, KPI row, journal card |
 | `public/app.js` | All rendering + poll loops (price 5s, signal 15s, news 5m, bot 10s, journal 5m); client-side target re-anchoring (`renderTargets`), `renderScalp`, `pollBot` |
 | `public/style.css` | Design tokens (light + dark via `prefers-color-scheme`), compact "terminal" density pass (12.5px base, 1440px), all component styles incl. bot/tabs/env tags |
 | `public/vendor/chart.umd.min.js` | Vendored Chart.js (no CDN, no build) |
 | `scripts/smoke.js` | CLI: fetch → build features → ridge walk-forward fwd1/fwd5 → print metrics (`npm run smoke`) |
+| `scripts/import_bot_history.js` | One-time backfill of the JSON bot ledgers (`data/bot_state*.json`) into `bot_trades` (`npm run import-bot-history`). Idempotent (`ON CONFLICT`); dealId-less broker-record rows get synthetic `import-<hash>` ids. Already run against Neon 2026-07-18 |
 | `package.json` | Deps: `express` ^5, `ml-random-forest`, `pg`, `xlsx`. Scripts: `start`, `smoke`. Node ≥22.12 (uses `node:sqlite`, global `fetch`) |
 | `README.md` | Product doc: target semantics, feed table, model honesty rules, roadmap |
 | `deploy.md` | Hetzner VPS runbook: systemd + Caddy basic-auth, Neon project `rough-unit-12935854`, troubleshooting table |
-| `data/` | Disk cache (disposable) + `config.json`, `journal.db` (sqlite fallback), and **bot state** (`bot_state.json`/`bot_state_live.json` + `.bak`, `bot_env.txt`) which is NOT disposable |
+| `data/` | Disk cache (disposable) + `config.json`, `journal.db` (sqlite fallback), and **bot state** (`bot_state.json`/`bot_state_live.json` + `.bak`, `bot_env.txt`) — config/dayPnl/events + a fallback copy of trades (authoritative trade ledger is `bot_trades` in Neon, §6). Whole dir is gitignored + machine-local — never travels via git |
 | `.env` | Secrets, gitignored (see §9) |
 
 ## 3. Runtime state
@@ -76,7 +77,7 @@ One Node/Express process (`server.js`, port 4173, no build step) serves a vanill
 | `journalStatsCache` | `journal.stats()` result refreshed each tick; feeds the signal combiner's verdict gates |
 | `priceCache` | `{ at, data }` 3s memo in `getLiveSpot`; also read by `liveSpreadPct()` for the economic lean floor |
 | `capital.js sessions` | `{ demo:{cst,token,lastLoginAt}, live:{…} }` per-env tokens + `activeEnv`; tokens reused until 401 |
-| `bot.js state` | `{ running, config, open[], closed[], events[], lastEntryAt, dayPnl, dayKey, halted }`; mirrored to a per-env disk file (`running` never restored true) |
+| `bot.js state` | `{ running, config, open[], closed[], events[], lastEntryAt, dayPnl, dayKey, halted }`; `config`/`env`/`dayPnl`/`events` mirrored to a per-env disk file (`running` never restored true); `open[]`/`closed[]` are **dual-written to the `bot_trades` DB table** (§6) and re-read from it (open-set hydrated at boot by `init()`), file kept as the outage fallback |
 | `journal.js driverPromise` | Memoized DB driver (pg pool or sqlite handle) |
 
 **On disk (`data/`, written by `lib/fetchers.js`):** default TTL 6h (`TTL_MS`); `clearCache()` deletes all `*.json` **except `config.json`** (it does not touch bot state or `bot_env.txt`).
@@ -96,9 +97,9 @@ One Node/Express process (`server.js`, port 4173, no build step) serves a vanill
 | `news_llm_v3_{slug}_{hash}.json` | LLM scores per (prompt-version, model, title-set) | 30m (`LLM_TTL_MS`) | — |
 | `config.json` | runtime config, survives clearCache | ∞ | — |
 | `journal.db` | sqlite journal (only without `DATABASE_URL`) | ∞ | — |
-| `bot_state.json` / `bot_state_live.json` (+ `.bak`) · `bot_env.txt` | per-env bot state + last-selected account | ∞ | — |
+| `bot_state.json` / `bot_state_live.json` (+ `.bak`) · `bot_env.txt` | per-env bot state (config/dayPnl/events + a **fallback** copy of open/closed trades — the source of truth for trades is the `bot_trades` DB table) + last-selected account | ∞ | — |
 
-**In Neon** (when `DATABASE_URL` set): tables `predictions`, `price_log`, `calibration_history`, `signals` (§6). Cache `data/` is disposable, **but the bot state files are not** — they hold open-position bookkeeping.
+**In Neon** (when `DATABASE_URL` set): tables `predictions`, `price_log`, `calibration_history`, `signals`, **`bot_trades`** (§6). Cache `data/` is disposable; the bot state files now hold only machine-local config/dayPnl/events plus a fallback copy of the trades — **the authoritative trade ledger is `bot_trades` in Neon**, so trade history survives a wiped `data/` and travels to any machine with `DATABASE_URL`.
 
 ## 4. Data flows
 
@@ -159,6 +160,7 @@ A Node port of quantedge's `brent_scalp_bot`, wired to this app's combiner signa
 - **Manual / close**: `manual('BUY'|'SELL')` opens one solo ticket with the configured size/TP/SL (same guards, no runner); `closeAll()` and close-one call `capital.closePosition`.
 - **Environments**: per-env state files (`bot_state.json` / `bot_state_live.json`), selection persisted to `bot_env.txt` and restored on boot (**never auto-starts**). `switchEnv` stops the bot, calls `capital.setEnv`, and loads that account's saved config; the **live** account is seeded with `LIVE_SAFE` (size 1, Strong-only, $30 cap, max 2) and `allowLive=true`, demo clears `allowLive`. `start`/`tick`/`manual` refuse a non-demo account unless `allowLive`.
 - **State durability**: `save()` is atomic — write `.tmp`, rename the previous file to `.bak`, rename `.tmp` into place; boot loads `.bak` if the primary is unreadable. Added after a real corruption incident caused by two server processes writing the same file — **run one server process only**.
+- **DB-backed ledger (2026-07-18)**: trades now live in the `bot_trades` table (§6), keyed `(instrument, env, deal_id)`, so history/stats/open-positions travel between machines. `lib/bot.js` **dual-writes**: `dbInsertOpen` on every entry (`tick`/`manual`), `dbMarkClosed` on every reconcile close (upsert, so a close lands even if its open was missed during a DB blip). Reads are DB-first: `status()`/`history()` pull closed history + all-time stats (now the *full* history, no `CLOSED_KEEP` cap) from the DB; `init()` hydrates the open working-set from `status='open'` rows at boot (back-filling any file-only opens). **Every DB call is best-effort** — on any error it logs and falls back to the file-backed in-memory state, so a database outage never blocks trading. `config`/`env`/`dayPnl`/`events` stay machine-local in the JSON state file. One-time backfill of the pre-existing JSON ledgers: `scripts/import_bot_history.js` (run once, already imported brent-demo 50 + btc-demo 3-open into Neon).
 
 Bot config (`DEFAULT_CONFIG`, `validate()`, `LIVE_SAFE`):
 
@@ -226,7 +228,9 @@ Indexes: `idx_pred_open(status, due_at)`, `idx_pred_h(horizon, status, resolved_
 **`calibration_history`** — `at`, `horizon`, `k`, `bias`, `n`, `active`; appended only when k moves >2% or bias >1e-4.
 **`signals`** — `at` (PK), `signal`, `bias`, `confidence`, `tape`, `price`, `ret_1h`, `hit_1h`, `ret_1d`, `hit_1d`. Logged every tick by `logSignal`; scored by `resolveSignals` at +1h (30m window) and +1d (3.5d window). HOLD / sub-noise → `hit` null; unresolvable → `ret` 0 / `hit` null, parked. `signalStats()` aggregates buys/holds/sells and the +1h/+1d hit rates for the UI and `/api/journal`.
 
-**Dual-driver adapter (`getDriver`).** `DATABASE_URL` → `pg.Pool` (max 3, `ssl:{rejectUnauthorized:false}`) against **Neon project `rough-unit-12935854`**; else `node:sqlite` `DatabaseSync` at `data/journal.db`. Shared DDL (`ddl(idLine)`); `?`→`$n` translation (`toPg`); the one non-portable statement is isolated as `upsertPrice` (pg `ON CONFLICT` vs sqlite `INSERT OR REPLACE`).
+**`bot_trades`** — the scalp-bot trade ledger (2026-07-18: moved out of the JSON state files so history travels between machines — every host with `DATABASE_URL` sees the same record). One row per ticket: `id` identity PK, `instrument`, `env` (`demo|live`), `deal_id`, `kind` (`solo|banker|runner`|null), `dir`, `size`, `entry`, `sl`, `tp`, `opened_at`, `closed_at`, `exit`, `pnl`, `reason`, `status` (`open|closed`). `UNIQUE (instrument, env, deal_id)` makes every write idempotent (`ON CONFLICT`). Index `idx_bot_trades_lookup(instrument, env, status)`. `lib/bot.js` dual-writes here (INSERT on entry, UPDATE→closed on reconcile) **and** to its JSON state file; history / all-time stats / the open working-set are **read back from here**, with the JSON file as automatic fallback on a DB outage. Written via the same dual driver — DDL is in the shared `ddl(idLine)` (brand-new table, so `CREATE TABLE IF NOT EXISTS` is the whole "migration"; no per-driver backfill needed).
+
+**Dual-driver adapter (`getDriver`, exported).** `DATABASE_URL` → `pg.Pool` (max 3, `ssl:{rejectUnauthorized:false}`) against **Neon project `rough-unit-12935854`**; else `node:sqlite` `DatabaseSync` at `data/journal.db`. Shared DDL (`ddl(idLine)`); `?`→`$n` translation (`toPg`); the one non-portable statement is isolated as `upsertPrice` (pg `ON CONFLICT` vs sqlite `INSERT OR REPLACE`). `getDriver` is exported so `lib/bot.js` (and `scripts/import_bot_history.js`) reuse the same pool/handle for `bot_trades` — the bot's `ON CONFLICT (…) DO UPDATE` upserts are portable across both drivers.
 
 ## 7. The self-calibration loop
 
@@ -336,3 +340,34 @@ The app is now instrument-segregated end to end; `brent` and `btc` share code, n
 - **Aggregate unrealized P/L**: `status()` returns top-level `unrealizedPnl` and `stats.unrealizedPnl` (sum of open trades' live mark-to-market, 0 when flat/no spot); rendered null-safely in the bot stats strip next to all-time realized figures.
 - **Perth timestamps**: trade history + activity log render via `perthTime()` (Australia/Perth, 24h) regardless of browser locale.
 - **In flight**: "CrudeSignal Terminal" premium reskin (comp in ~/Downloads zip) being implemented as a skin over the existing contracts — design law, glance tiers, live-data choreography and all element ids preserved; both themes; palette re-validated.
+- **DB-backed bot ledger (2026-07-18)**: bot trade history moved from the gitignored JSON state files into the `bot_trades` Neon table (§6) so it travels between machines. `lib/bot.js` dual-writes (file stays as the outage fallback); `scripts/import_bot_history.js` backfilled the existing ledgers (brent-demo 50 closed, btc-demo 3 open) into Neon. See the VPS runbook below for rollout.
+
+## Next engineer — VPS runbook (oil.roomxvi.com)
+
+Production runs on the user's VPS at **oil.roomxvi.com** (systemd + Caddy per `deploy.md`). This Mac is a **dev machine only** — its server is intentionally dead and must stay dead (see below). The DB-backed bot ledger is already imported into Neon; the VPS just needs to pull the code and restart.
+
+**1. Roll out this change.** On the VPS:
+```
+cd <app dir> && git pull
+npm install                     # picks up nothing new dep-wise, but keep it in the ritual
+sudo systemctl restart <service>   # the single Node process; see deploy.md for the unit name
+```
+The bot's trade history + all-time stats + any open positions then appear **automatically from Neon** on boot (`bot.init()` hydrates the open-set from `bot_trades`; `status`/`history` read closed trades + stats from it). **No file copying** — do NOT scp `data/bot_state*.json` from anywhere; the JSON files are per-machine fallbacks, and Neon is the source of truth.
+
+**2. Smoke-check after restart** (read-only):
+- **Login page** loads and gates the app (Caddy/app auth — see step 7).
+- **`/api/config`** → `llmKeyPresent`, `parallelKeyPresent`, `capitalConfigured` all **`true`** (all secrets present in the VPS `.env`).
+- **`/api/price`** → `source: "capital-cfd"` (live CFD spot, not the `yahoo-delayed` fallback).
+- Open the bot card: the Brent **Demo** tab shows the imported closed-trade history; the Bitcoin tab shows its 3 open positions. (Brent defaults to whatever `data/bot_env.txt` holds on the VPS — the Demo tab is where the 50-trade history lives; §12 "Stats gotcha".)
+
+**3. Start the BTC demo bot** from the UI (Bitcoin tab → Start) if it should be trading. BTC is hard demo-only (`liveLocked`), so this is always safe.
+
+**4. NEVER start the Brent LIVE bot from automation.** Owner's standing order (§13 HUMAN-ONLY LIVE ARMING): only the user's own Start click may arm real money. No script, agent, restart hook, or "helpful" step may start a live-env bot. After any restart, re-start demo bots if they were running and leave live bots **STOPPED** — bots never auto-resume, and this rule additionally forbids programmatic re-arming.
+
+**5. Exactly one trading home.** The VPS is the only place the app runs. The local Mac server must stay dead — two live app processes once corrupted bot state, and even now a second process would double-log the journal and fight over Capital sessions. If behaviour ever looks stale, `ps aux | grep "node server.js"` must show **exactly one** process (on the VPS, zero on the Mac).
+
+**6. `.env` and `data/` never travel via git.** Both are gitignored. Secrets live only in the VPS `.env` (and the dev Mac's). `data/` is machine-local (disk cache + fallback bot state); the durable trade/journal record is in Neon. Never commit either.
+
+**7. Suggested-but-optional hardening** (a second layer in front of the app's own login):
+- **systemd hardening** on the service unit: `NoNewPrivileges=true`, `ProtectSystem=strict`, `ProtectHome=true`, `PrivateTmp=true`, `ReadWritePaths=<app>/data`, `Restart=on-failure`. Keep it a single process (bot-state + one-writer invariant).
+- **Caddy `basic_auth`** in front of the app (per `deploy.md`) as defence-in-depth on top of the in-app login — belt and braces for a single-user, no-multi-tenant deployment.
