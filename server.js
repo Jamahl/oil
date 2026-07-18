@@ -516,7 +516,7 @@ app.get('/api/journal/insight', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
+const srv = app.listen(PORT, () => {
   console.log(`CrudeSignal Lab -> http://localhost:${PORT}`);
   loadData()
     .then(() =>
@@ -529,3 +529,4 @@ app.listen(PORT, () => {
     })
     .catch((e) => console.error('warmup failed:', e.message));
 });
+srv.on('error', (e) => { console.error('FATAL: listen failed (' + e.code + ') — another server holds the port. Exiting.'); process.exit(1); });
