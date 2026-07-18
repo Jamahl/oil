@@ -69,16 +69,24 @@ work is a bug, not an edge.
   not better than baseline, fwd5 IC collapsed vs t001. No holdout spent.
 - `t004` SPR 4w flow ablation (baseline + `sprChg4`) — killed at tune: negative
   hit edges everywhere, fwd5 identical to baseline. No holdout spent.
-- All WPSR extra features remain implemented (`lib/data.js`, research loader) for
+- `t005` CFTC COT (WTI net-spec/OI level + 52w z, Socrata API, publish-date
+  join) — killed at tune, worst candidate yet: fwd21 IC −0.145, sharpeNet −1.74.
+  No holdout spent.
+- All candidate features stay implemented (`lib/data.js`, research loader) for
   reuse in combinations; use `--features` for ablations.
+- **Honest reading after 3 candidates:** every free-data feature family tried so
+  far (WPSR fundamentals, SPR policy flow, COT positioning) fails to beat the
+  already-dead baseline out-of-sample. Matches the README's warning and the
+  literature — the loop's value is that each kill cost minutes, not weeks.
 
 ## Backlog (expected value order)
 
-1. **CFTC COT positioning** (crowdedness/squeeze) — free weekly CSV; join on
-   publish date (Friday for Tuesday data). Next candidate up.
-2. **Term structure** (M1−M2 / M1−M6) — best literature support but **blocked on
+1. **Term structure** (M1−M2 / M1−M6) — best literature support but **blocked on
    data**: Yahoo drops expired contracts, so no free 10y curve history found yet.
-   Needs a curve source (Nasdaq Data Link continuous contracts, or start
-   archiving live M1/M2 forward from here).
-3. Event flags: OPEC meeting calendar, OVX-percentile regime.
-4. Weekly-horizon model on Friday-to-Friday non-overlapping returns.
+   Options: hunt a curve source (needs web search — ask Jamahl first), or start
+   archiving live M1/M2 daily now and the feature becomes testable in ~6 months.
+2. Event flags: OPEC meeting calendar, OVX-percentile regime.
+3. Weekly-horizon model on Friday-to-Friday non-overlapping returns (cleaner
+   stats for the 1w card, methodology candidate rather than feature).
+4. Combination trials of killed singles only if a fundamentals story says they
+   interact — never shotgun combinations (multiplies the trial count).

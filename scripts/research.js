@@ -11,7 +11,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
-const { yahooDaily, yahooSeries, eiaCrudeStocks, eiaWeeklySeries } = require('../lib/fetchers');
+const { yahooDaily, yahooSeries, eiaCrudeStocks, eiaWeeklySeries, cotWtiPositioning } = require('../lib/fetchers');
 const { buildDataset, buildIntradayRows } = require('../lib/data');
 const { fitFnFor, walkForward, evaluate } = require('../lib/model');
 
@@ -62,7 +62,7 @@ function gitState() {
 async function loadDataset(which, featureKeys) {
   if (which === 'daily') {
     const warn = (id) => (e) => (console.warn(`feed ${id} failed: ${e.message}`), null);
-    const [brent, wti, dxy, ovx, inv, cush, gas, dist, util, spr] = await Promise.all([
+    const [brent, wti, dxy, ovx, inv, cush, gas, dist, util, spr, cot] = await Promise.all([
       yahooDaily('BZ=F'),
       yahooDaily('CL=F'),
       yahooDaily('DX-Y.NYB'),
@@ -74,8 +74,9 @@ async function loadDataset(which, featureKeys) {
       eiaWeeklySeries('WDISTUS1').catch(warn('EIA distillate')),
       eiaWeeklySeries('WPULEUS3').catch(warn('EIA utilization')),
       eiaWeeklySeries('WCSSTUS1').catch(warn('EIA SPR')),
+      cotWtiPositioning().catch(warn('CFTC COT')),
     ]);
-    const ds = buildDataset({ brent, wti, dxy, ovx, inv, cush, gas, dist, util, spr }, { featureKeys });
+    const ds = buildDataset({ brent, wti, dxy, ovx, inv, cush, gas, dist, util, spr, cot }, { featureKeys });
     return { rows: ds.rows, features: ds.features, barDates: ds.dates, holdoutStart: HOLDOUT_START.daily };
   }
   const series = await yahooSeries('BZ=F', { range: '730d', interval: '1h', ttlMs: 2 * 60 * 60 * 1000 });
