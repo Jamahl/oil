@@ -101,6 +101,11 @@ function renderHero(d) {
     <span class="state-badge state-${a.level}"><span class="dot"></span>${a.level} tape</span>
     <p>${explain}</p>
     <p class="note">news score ${a.points} · lanes: ${lanes.parallel ? 'Parallel ✓' : 'Parallel —'} · ${lanes.rss ? 'RSS ✓' : 'RSS —'} · refreshed ${d.news.fetchedAt ? new Date(d.news.fetchedAt).toLocaleTimeString() : '—'}</p>`;
+  const tapeEl = $('cmd-tape');
+  if (tapeEl) {
+    tapeEl.className = 'cmd-stat tape-' + a.level;
+    tapeEl.textContent = a.level + ' TAPE';
+  }
 }
 
 function renderTargets(d, liveSpot) {
@@ -318,6 +323,8 @@ function renderChrome(d) {
   $('card-inventory').hidden = !d.series.inventory; // oil-only card
   $('inst-brent').classList.toggle('active', d.instrument !== 'btc');
   $('inst-btc').classList.toggle('active', d.instrument === 'btc');
+  const ctx = $('cmd-ctx');
+  if (ctx) ctx.innerHTML = `${(d.fullLabel || lbl).toUpperCase()} CFD &lt;GO&gt;<span class="caret"></span>`;
 }
 
 function renderSimple(d) {
@@ -796,6 +803,11 @@ async function pollPrice() {
       badge.className = 'live-badge' + (live ? ' live' : '');
       badge.innerHTML = `<span class="dot"></span>${live ? `LIVE CFD${p.env === 'demo' ? '' : ''}${p.marketStatus && p.marketStatus !== 'TRADEABLE' ? ' · ' + p.marketStatus.toLowerCase() : ''}` : 'delayed'}`;
     }
+    const cmdLive = $('cmd-live');
+    if (cmdLive) {
+      cmdLive.className = 'cmd-stat' + (live ? ' live' : '');
+      cmdLive.innerHTML = `<span class="dot"></span>${live ? 'LIVE CFD' : 'DELAYED'}`;
+    }
     const big = $('hero-big');
     if (big) big.textContent = fmt.usd(p.mid);
     const asof = $('hero-asof');
@@ -850,6 +862,56 @@ function renderScalp(p) {
     <span><span class="slabel">Move ÷ spread</span><span class="sval">${ratio != null ? ratio.toFixed(1) + '×' : '—'}</span></span>
     ${tape !== 'QUIET' ? `<span class="note">⚠ ${tape} tape — headline jumps, slippage risk on tight stops</span>` : ''}`;
 }
+
+/* --- terminal chrome: Perth clock, theme toggle, fn keys (additive, null-safe) --- */
+const clockEl = $('cmd-clock');
+if (clockEl) {
+  const tick = () => {
+    clockEl.textContent =
+      new Date().toLocaleTimeString('en-AU', { timeZone: 'Australia/Perth', hour12: false }) + ' AWST';
+  };
+  tick();
+  setInterval(tick, 1000);
+}
+
+function currentTheme() {
+  return (
+    document.documentElement.dataset.theme ||
+    (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+  );
+}
+function setTheme(t) {
+  document.documentElement.dataset.theme = t;
+  if (lastData) renderAll(lastData); // charts re-read CSS tokens on render
+}
+for (const id of ['btn-theme', 'fn-theme']) {
+  const el = $(id);
+  if (el) el.addEventListener('click', () => setTheme(currentTheme() === 'dark' ? 'light' : 'dark'));
+}
+
+function scrollToPanel(id) {
+  const el = $(id);
+  if (el)
+    el.scrollIntoView({
+      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+      block: 'start',
+    });
+}
+{
+  const fnRefresh = $('fn-refresh');
+  if (fnRefresh) fnRefresh.addEventListener('click', () => $('btn-refresh').click());
+  const fnNews = $('fn-news');
+  if (fnNews) fnNews.addEventListener('click', () => scrollToPanel('news-card'));
+  const fnBot = $('fn-bot');
+  if (fnBot) fnBot.addEventListener('click', () => scrollToPanel('bot-card'));
+}
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'F1') { e.preventDefault(); switchInstrument('brent'); }
+  else if (e.key === 'F2') { e.preventDefault(); switchInstrument('btc'); }
+  else if (e.key === 'F6') { e.preventDefault(); setTheme(currentTheme() === 'dark' ? 'light' : 'dark'); }
+  else if (e.key === 'F8') { e.preventDefault(); scrollToPanel('news-card'); }
+  else if (e.key === 'F9') { e.preventDefault(); scrollToPanel('bot-card'); }
+});
 
 initConfig();
 load('ridge').then(pollPrice);
