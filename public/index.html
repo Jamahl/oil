@@ -8,102 +8,156 @@
 <script src="vendor/chart.umd.min.js"></script>
 </head>
 <body>
-<div class="wrap" id="app">
+<div class="term" id="app">
 
-  <header>
-    <div class="brand">
-      <h1>CrudeSignal <span>Lab</span></h1>
-      <div class="seg" id="inst-nav">
-        <button id="inst-brent" class="seg-btn active">Brent</button>
-        <button id="inst-btc" class="seg-btn">Bitcoin</button>
-      </div>
-      <p class="tagline" id="tagline">Price targets from free data — honest ranges, not oracle calls</p>
-    </div>
-    <div class="controls">
-      <span id="data-ok" class="chip"><span class="dot"></span>data</span>
-      <button id="btn-refresh" class="btn">Refresh</button>
-    </div>
+  <!-- ============ COMMAND BAR ============ -->
+  <header class="cmdbar">
+    <span class="cmd-brand">CRUDESIGNAL</span>
+    <span class="cmd-prompt">CMD&gt;</span>
+    <span class="cmd-ctx" id="cmd-ctx">BRENT CRUDE CFD<span class="caret"></span></span>
+    <span class="cmd-spacer"></span>
+    <span id="data-ok" class="chip"><span class="dot"></span>data</span>
+    <span id="cmd-live" class="cmd-stat"><span class="dot"></span>—</span>
+    <span id="cmd-tape" class="cmd-stat">—</span>
+    <button id="btn-refresh" class="btn ghost" aria-label="Refetch all feeds">↻ REFRESH</button>
+    <button id="btn-theme" class="btn ghost icon" aria-label="Toggle light / dark theme" title="Toggle theme">◐</button>
+    <span id="cmd-clock" class="cmd-clock">--:--:-- AWST</span>
   </header>
 
   <div id="status" class="status" hidden></div>
 
-  <section class="hero-row">
-    <div class="card hero-price" id="hero-price"></div>
-    <div class="card hero-sig" id="hero-signal"><p class="note">Computing signal…</p></div>
-    <div class="card hero-state" id="hero-state"></div>
-  </section>
+  <!-- ============ TERMINAL GRID ============ -->
+  <div class="term-grid">
 
-  <section id="targets" class="targets-row"></section>
-  <p class="note center" id="targets-note"></p>
+    <!-- ---------- LEFT: quote · signal · tape · news ---------- -->
+    <div class="col col-left">
 
-  <div id="scalp" class="scalp-strip"><span class="note">Scalp conditions — waiting for first live tick…</span></div>
+      <section class="panel">
+        <div class="panel-head"><span class="secnum">01</span>QUOTE</div>
+        <div class="panel-body hero-price" id="hero-price"></div>
+      </section>
 
-  <section class="card" id="bot-card">
-    <div class="news-head">
-      <h2>Scalp bot <span class="unit">auto-trades the signal on your Capital.com account · broker-side SL/TP</span></h2>
-      <div class="llm-config">
-        <div class="seg"><button id="tab-demo" class="seg-btn active">Demo</button><button id="tab-live" class="seg-btn livetab">Real</button></div>
-        <span id="bot-env" class="chip"><span class="dot"></span>—</span>
-        <button id="bot-buy" class="btn small pill buy">▲ Buy now</button>
-        <button id="bot-sell" class="btn small pill sell">▼ Sell now</button>
-        <button id="bot-start" class="btn small">Start</button>
-        <button id="bot-stop" class="btn small" hidden>Stop</button>
-        <button id="bot-closeall" class="btn small">Close all</button>
-      </div>
-    </div>
-    <div id="bot-stats" class="bot-stats" hidden></div>
-    <div id="bot-body"><p class="note">Loading bot…</p></div>
-  </section>
+      <section class="panel panel-sig">
+        <div class="panel-head"><span class="secnum">02</span>SIGNAL<span class="panel-meta">uncalibrated</span></div>
+        <div class="panel-body hero-sig" id="hero-signal"><p class="note">Computing signal…</p></div>
+      </section>
 
-  <section class="grid-news">
-    <div class="card" id="news-card">
-      <div class="news-head">
-        <h2><span id="hd-news">What's moving oil</span> <span class="unit" id="news-sources">newest first · updates every 5 min</span></h2>
-        <div class="llm-config">
-          <span id="llm-status" class="chip"><span class="dot"></span>AI</span>
-          <input id="inp-llm" list="llm-models" placeholder="openrouter model slug" spellcheck="false">
-          <datalist id="llm-models">
-            <option value="poolside/laguna-xs-2.1:free"></option>
-            <option value="meta-llama/llama-3.3-70b-instruct:free"></option>
-            <option value="deepseek/deepseek-chat-v3-0324:free"></option>
-            <option value="google/gemma-3-27b-it:free"></option>
-          </datalist>
-          <button id="btn-llm" class="btn small">Apply</button>
+      <section class="panel">
+        <div class="panel-head"><span class="secnum">03</span>TAPE</div>
+        <div class="panel-body hero-state" id="hero-state"></div>
+      </section>
+
+      <section class="panel panel-flex" id="news-card">
+        <div class="panel-head">
+          <span class="secnum">04</span><span id="hd-news">What's moving oil</span>
+          <span class="panel-meta unit" id="news-sources">newest first · updates every 5 min</span>
         </div>
-      </div>
-      <div id="llm-read" class="llm-read" hidden></div>
-      <div id="news-list"></div>
-    </div>
-    <div class="card chart-card">
-      <h2><span id="hd-intraday">Brent — last few sessions</span> <span class="unit">15-minute bars</span></h2>
-      <div class="chart-box"><canvas id="ch-intraday"></canvas></div>
-    </div>
-  </section>
+        <div class="panel-body">
+          <div class="llm-config">
+            <span id="llm-status" class="chip"><span class="dot"></span>AI</span>
+            <input id="inp-llm" list="llm-models" placeholder="openrouter model slug" spellcheck="false">
+            <datalist id="llm-models">
+              <option value="poolside/laguna-xs-2.1:free"></option>
+              <option value="meta-llama/llama-3.3-70b-instruct:free"></option>
+              <option value="deepseek/deepseek-chat-v3-0324:free"></option>
+              <option value="google/gemma-3-27b-it:free"></option>
+            </datalist>
+            <button id="btn-llm" class="btn small">Apply</button>
+          </div>
+          <div id="llm-read" class="llm-read" hidden></div>
+          <div id="news-list"></div>
+        </div>
+      </section>
 
-  <section class="grid-2" id="grid-daily">
-    <div class="card chart-card">
-      <h2><span id="hd-daily">Brent — last 2 years</span> <span class="unit" id="hd-daily-unit">$/bbl daily</span></h2>
-      <div class="chart-box short"><canvas id="ch-price"></canvas></div>
     </div>
-    <div class="card chart-card" id="card-inventory">
-      <h2>US crude stocks (EIA, excl SPR) <span class="unit">million bbl · weekly</span></h2>
-      <div class="chart-box shorter"><canvas id="ch-inv-level"></canvas></div>
-      <div class="chart-box shorter"><canvas id="ch-inv-chg"></canvas></div>
-      <div class="legend" id="lg-inv"></div>
-    </div>
-  </section>
 
-  <section id="kpis" class="kpi-row"></section>
+    <!-- ---------- MIDDLE: targets · scalp · charts · kpi · journal ---------- -->
+    <div class="col col-mid">
 
-  <section class="card" id="journal-card">
-    <h2>Does this thing actually predict? <span class="unit">every forecast scored against the real price — the app corrects itself from the results</span></h2>
-    <div id="journal-body"><p class="note">Journal warming up…</p></div>
-    <div class="journal-foot">
-      <button id="btn-insight" class="btn small">AI review of the journal</button>
-      <span class="note" id="journal-meta"></span>
+      <section class="panel">
+        <div class="panel-head"><span class="secnum">05</span>TARGETS<span class="panel-meta">±1&#963; · 2-in-3 odds · lean is context</span></div>
+        <div class="panel-body">
+          <div class="targets-colhead"><span>HZN</span><span>TARGET</span><span>RANGE</span><span>LEAN</span><span>EDGE</span></div>
+          <div id="targets" class="targets-row"></div>
+          <p class="note" id="targets-note"></p>
+        </div>
+      </section>
+
+      <div id="scalp" class="scalp-strip"><span class="note">Scalp conditions — waiting for first live tick…</span></div>
+
+      <section class="panel">
+        <div class="panel-head"><span class="secnum">06</span><span id="hd-intraday">Brent — last few sessions</span><span class="panel-meta unit">15-minute bars</span></div>
+        <div class="panel-body"><div class="chart-box"><canvas id="ch-intraday"></canvas></div></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head"><span class="secnum">07</span><span id="hd-daily">Brent — last 2 years</span><span class="panel-meta unit" id="hd-daily-unit">$/bbl daily</span></div>
+        <div class="panel-body"><div class="chart-box short"><canvas id="ch-price"></canvas></div></div>
+      </section>
+
+      <section class="panel" id="card-inventory">
+        <div class="panel-head"><span class="secnum">08</span>US crude stocks<span class="panel-meta unit">EIA, excl SPR · million bbl · weekly</span></div>
+        <div class="panel-body">
+          <div class="chart-box shorter"><canvas id="ch-inv-level"></canvas></div>
+          <div class="chart-box shorter"><canvas id="ch-inv-chg"></canvas></div>
+          <div class="legend" id="lg-inv"></div>
+        </div>
+      </section>
+
+      <section id="kpis" class="kpi-row"></section>
+
+      <section class="panel" id="journal-card">
+        <div class="panel-head"><span class="secnum">09</span>Does this thing actually predict?<span class="panel-meta unit">every forecast scored vs the real price — the app corrects itself</span></div>
+        <div class="panel-body">
+          <div id="journal-body"><p class="note">Journal warming up…</p></div>
+          <div class="journal-foot">
+            <button id="btn-insight" class="btn small">AI review of the journal</button>
+            <span class="note" id="journal-meta"></span>
+          </div>
+          <div id="insight-out" class="llm-read" hidden></div>
+        </div>
+      </section>
+
     </div>
-    <div id="insight-out" class="llm-read" hidden></div>
-  </section>
+
+    <!-- ---------- RIGHT: bot ---------- -->
+    <div class="col col-right">
+      <section class="panel panel-flex" id="bot-card">
+        <div class="panel-head">
+          <span class="secnum">10</span>SCALP BOT
+          <span class="panel-meta unit">auto-trades the signal · broker-side SL/TP</span>
+        </div>
+        <div class="panel-body">
+          <div class="bot-controls">
+            <div class="seg" role="tablist" aria-label="Trading environment">
+              <button id="tab-demo" class="seg-btn active">DEMO</button>
+              <button id="tab-live" class="seg-btn livetab">REAL</button>
+            </div>
+            <span id="bot-env" class="chip"><span class="dot"></span>—</span>
+            <span class="ctl-spacer"></span>
+            <button id="bot-buy" class="btn small pill buy">▲ BUY</button>
+            <button id="bot-sell" class="btn small pill sell">▼ SELL</button>
+            <button id="bot-start" class="btn small go">START</button>
+            <button id="bot-stop" class="btn small" hidden>STOP</button>
+            <button id="bot-closeall" class="btn small">CLOSE ALL</button>
+          </div>
+          <div id="bot-stats" class="bot-stats" hidden></div>
+          <div id="bot-body"><p class="note">Loading bot…</p></div>
+        </div>
+      </section>
+    </div>
+
+  </div>
+
+  <!-- ============ FUNCTION KEY BAR ============ -->
+  <nav class="fnbar" aria-label="Terminal shortcuts">
+    <button id="inst-brent" class="fnkey active"><span class="fk">F1</span>BRENT</button>
+    <button id="inst-btc" class="fnkey"><span class="fk">F2</span>BITCOIN</button>
+    <button id="fn-refresh" class="fnkey"><span class="fk">F5</span>REFRESH</button>
+    <button id="fn-theme" class="fnkey"><span class="fk">F6</span>THEME</button>
+    <button id="fn-news" class="fnkey"><span class="fk">F8</span>NEWS</button>
+    <button id="fn-bot" class="fnkey"><span class="fk">F9</span>BOT</button>
+  </nav>
 
 </div>
 <script src="app.js"></script>
