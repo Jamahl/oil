@@ -53,6 +53,10 @@ h1 { font-size: 22px; margin: 0; letter-spacing: -0.01em; }
 h1 span { color: var(--series-1); }
 .tagline { margin: 2px 0 0; color: var(--text-secondary); font-size: 13px; }
 .controls { display: flex; gap: 8px; align-items: center; }
+.pages { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surface-1); }
+.pages a { padding: 7px 14px; color: var(--text-secondary); text-decoration: none; font-weight: 600; }
+.pages a.active { background: var(--series-1); color: #fff; }
+.pages a:not(.active):hover { background: color-mix(in srgb, var(--surface-1) 85%, var(--text-primary) 6%); }
 
 .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surface-1); }
 .seg-btn {
@@ -99,6 +103,43 @@ h1 span { color: var(--series-1); }
 .state-ELEVATED .dot { background: var(--chip-warn); }
 .state-EVENT .dot { background: var(--chip-bad); }
 .hero-state p { margin: 8px 0 0; color: var(--text-secondary); font-size: 13px; }
+
+/* --- positions overview --- */
+.positions-card { margin-bottom: 10px; }
+.pos-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.pos-head h2 { margin: 0; }
+.pos-filters { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip.filter { cursor: pointer; appearance: none; font: inherit; font-size: 12px; text-transform: capitalize; }
+.chip.filter:hover { background: color-mix(in srgb, var(--surface-1) 85%, var(--text-primary) 6%); }
+.chip.filter.active { background: var(--series-1); border-color: var(--series-1); color: #fff; }
+.pos-summary { display: flex; gap: 24px; flex-wrap: wrap; padding: 4px 0 10px; border-bottom: 1px solid var(--grid); margin-bottom: 4px; }
+.pos-total .label { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.pos-total .value { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.pos-total .value.up { color: var(--delta-up); }
+.pos-total .value.down { color: var(--delta-down); }
+.pos-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--grid); }
+.pos-row:last-child { border-bottom: 0; }
+.pos-inst { flex: 1 1 auto; min-width: 140px; }
+.pos-inst b { font-size: 13px; font-weight: 600; }
+.pos-meta { font-size: 11px; color: var(--muted); margin-top: 1px; font-variant-numeric: tabular-nums; }
+.pos-pills { display: flex; gap: 5px; flex: 0 0 auto; }
+.pill {
+  display: inline-flex; align-items: center; font-size: 10px; font-weight: 700; letter-spacing: 0.05em;
+  text-transform: uppercase; border-radius: 999px; padding: 2px 8px; border: 1px solid var(--border);
+  color: var(--text-secondary); background: color-mix(in srgb, var(--surface-1) 80%, var(--text-primary) 5%);
+}
+.pill.long { color: var(--delta-up); border-color: color-mix(in srgb, var(--delta-up) 40%, transparent); background: color-mix(in srgb, var(--delta-up) 10%, var(--surface-1)); }
+.pill.short { color: var(--delta-down); border-color: color-mix(in srgb, var(--delta-down) 40%, transparent); background: color-mix(in srgb, var(--delta-down) 10%, var(--surface-1)); }
+.pill.tag-oil { color: var(--series-1); border-color: color-mix(in srgb, var(--series-1) 40%, transparent); background: color-mix(in srgb, var(--series-1) 10%, var(--surface-1)); }
+.pill.tag-gas { color: var(--series-2); border-color: color-mix(in srgb, var(--series-2) 40%, transparent); background: color-mix(in srgb, var(--series-2) 10%, var(--surface-1)); }
+.pill.tag-btc, .pill.tag-eth, .pill.tag-crypto, .pill.tag-gold {
+  color: var(--series-3); border-color: color-mix(in srgb, var(--series-3) 40%, transparent); background: color-mix(in srgb, var(--series-3) 10%, var(--surface-1));
+}
+.pos-now { flex: 0 0 auto; text-align: right; font-size: 13px; font-variant-numeric: tabular-nums; color: var(--text-secondary); min-width: 80px; }
+.pos-pl { flex: 0 0 auto; text-align: right; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; min-width: 90px; }
+.pos-pl.up { color: var(--delta-up); }
+.pos-pl.down { color: var(--delta-down); }
+@media (max-width: 700px) { .pos-now { display: none; } }
 
 /* --- target cards --- */
 .targets-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }

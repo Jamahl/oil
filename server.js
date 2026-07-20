@@ -5,7 +5,7 @@ const path = require('path');
 const { Worker } = require('worker_threads');
 const express = require('express');
 const { yahooDaily, yahooSeries, eiaCrudeStocks, clearCache } = require('./lib/fetchers');
-const { buildDataset, buildIntradayRows, recentVol, pearson } = require('./lib/data');
+const { buildDataset, buildGoldDataset, buildIntradayRows, recentVol, pearson } = require('./lib/data');
 const { fetchNews, newsBandFactor } = require('./lib/news');
 const { DEFAULT_MODEL } = require('./lib/llm');
 const { buildTargets } = require('./lib/targets');
@@ -19,6 +19,8 @@ app.use(express.static(path.join(__dirname, 'public')));
 const state = {
   loading: null,
   data: null,
+  goldLoading: null,
+  goldData: null,
   models: new Map(),
 };
 
@@ -44,6 +46,18 @@ const FEEDS = [
   { id: 'i15', label: 'Brent 15m bars', fn: () => yahooSeries('BZ=F', { range: '60d', interval: '15m', ttlMs: 30 * 60 * 1000 }), required: false, staleDays: 4 },
   { id: 'i60', label: 'Brent 1h bars', fn: () => yahooSeries('BZ=F', { range: '730d', interval: '1h', ttlMs: 2 * 60 * 60 * 1000 }), required: false, staleDays: 4 },
   { id: 'news', label: 'News', fn: () => fetchNews(config.newsModel), required: false, staleDays: 2 },
+];
+
+// Gold page feeds — separate load path so the oil dashboard's startup and
+// required-feed semantics are untouched. GC=F is the only hard requirement.
+const GOLD_FEEDS = [
+  { id: 'gold', label: 'Gold GC=F', fn: () => yahooDaily('GC=F'), required: true, staleDays: 7 },
+  { id: 'silver', label: 'Silver SI=F', fn: () => yahooDaily('SI=F'), required: false, staleDays: 10 },
+  { id: 'gvz', label: 'GVZ', fn: () => yahooDaily('^GVZ'), required: false, staleDays: 10 },
+  { id: 'dxy', label: 'DXY', fn: () => yahooDaily('DX-Y.NYB'), required: true, staleDays: 7 },
+  { id: 'i15', label: 'Gold 15m bars', fn: () => yahooSeries('GC=F', { range: '60d', interval: '15m', ttlMs: 30 * 60 * 1000 }), required: false, staleDays: 4 },
+  { id: 'i60', label: 'Gold 1h bars', fn: () => yahooSeries('GC=F', { range: '730d', interval: '1h', ttlMs: 2 * 60 * 60 * 1000 }), required: false, staleDays: 4 },
+  { id: 'news', label: 'Gold news', fn: () => fetchNews(config.newsModel, 'gold'), required: false, staleDays: 2 },
 ];
 
 function feedLastDate(id, value) {
@@ -93,6 +107,46 @@ async function loadData(force = false) {
   return state.loading;
 }
 
+async function loadGoldData(force = false) {
+  if (state.goldLoading) return state.goldLoading;
+  if (state.goldData && !force) return state.goldData;
+  state.goldLoading = (async () => {
+    const results = await Promise.allSettled(GOLD_FEEDS.map((f) => f.fn()));
+    const raw = {};
+    const health = [];
+    GOLD_FEEDS.forEach((f, idx) => {
+      const r = results[idx];
+      if (r.status === 'fulfilled') {
+        raw[f.id] = r.value;
+        const lastDate = feedLastDate(f.id, r.value);
+        const ageDays = (Date.now() - Date.parse(lastDate)) / 86400000;
+        health.push({ id: f.id, label: f.label, ok: true, lastDate: lastDate.slice(0, 16).replace('T', ' '), stale: ageDays > f.staleDays });
+      } else {
+        raw[f.id] = null;
+        health.push({ id: f.id, label: f.label, ok: false, error: String((r.reason && r.reason.message) || r.reason) });
+        if (f.required) throw new Error(`${f.label} failed: ${(r.reason && r.reason.message) || r.reason}`);
+      }
+    });
+    const ds = buildGoldDataset(raw);
+    if (ds.rows.length < 300) throw new Error(`gold: only ${ds.rows.length} usable rows after alignment`);
+    const intraday = {
+      i15: raw.i15 ? buildIntradayRows(raw.i15) : null,
+      i60: raw.i60 ? buildIntradayRows(raw.i60) : null,
+    };
+    const vols = {
+      bar15: raw.i15 ? recentVol(raw.i15.close, 200) : null,
+      bar60: raw.i60 ? recentVol(raw.i60.close, 200) : null,
+      daily: recentVol(ds.gold, 63),
+    };
+    state.goldData = { raw, ds, intraday, vols, health, builtAt: new Date().toISOString() };
+    for (const key of state.models.keys()) if (key.startsWith('gold:')) state.models.delete(key);
+    return state.goldData;
+  })().finally(() => {
+    state.goldLoading = null;
+  });
+  return state.goldLoading;
+}
+
 // Model training runs in a worker thread — the pure-JS forest can take tens of
 // seconds and must never block the HTTP event loop.
 function runWorker(dsSlice, kind, horizonKey, opts) {
@@ -138,20 +192,41 @@ function intradayBundle(id, label, step) {
   );
 }
 
+function goldDailyBundle(kind, horizonKey) {
+  const { ds } = state.goldData;
+  return getModelBundle(`gold:${kind}:${horizonKey}`, () =>
+    runWorker({ rows: ds.rows, features: ds.features }, kind, horizonKey, {})
+  );
+}
+
+function goldIntradayBundle(id, label, step) {
+  const rowsBundle = state.goldData.intraday[id];
+  if (!rowsBundle || rowsBundle.rows.length < 500) return Promise.resolve(null);
+  return getModelBundle(`gold:ridge:${id}`, () =>
+    runWorker(rowsBundle, 'ridge', 'fwd1', { step, lite: true, label })
+  );
+}
+
 // Live spot with a short memo so a polling browser costs one upstream call
 // per 3s at most. Falls back to the freshest Yahoo bar when capital.com is
 // unconfigured or erroring.
-let priceCache = { at: 0, data: null };
+const PRICE_INSTRUMENTS = ['brent', 'wti', 'gold'];
+const priceCaches = new Map(); // instrument -> { at, data }
 app.get('/api/price', async (req, res) => {
   try {
-    if (priceCache.data && Date.now() - priceCache.at < 3000) return res.json(priceCache.data);
+    const instrument = PRICE_INSTRUMENTS.includes(req.query.instrument) ? req.query.instrument : 'brent';
+    const cached = priceCaches.get(instrument);
+    if (cached && Date.now() - cached.at < 3000) return res.json(cached.data);
     let out = null;
     if (capital.configured()) {
       try {
-        out = await capital.snapshot('brent');
+        out = await capital.snapshot(instrument);
       } catch (e) {
         console.error('capital price failed:', e.message);
       }
+    }
+    if (!out && instrument !== 'brent') {
+      return res.status(502).json({ error: `no live quote for ${instrument} (capital.com down or unconfigured)` });
     }
     if (!out) {
       await loadData();
@@ -164,7 +239,33 @@ app.get('/api/price', async (req, res) => {
         pctChange: null,
       };
     }
-    priceCache = { at: Date.now(), data: out };
+    priceCaches.set(instrument, { at: Date.now(), data: out });
+    res.json(out);
+  } catch (e) {
+    res.status(500).json({ error: String(e.message || e) });
+  }
+});
+
+// Open positions overview (scalping bot account) — read-only, memoized like
+// /api/price so a polling browser costs one upstream call per 3s at most.
+let posCache = { at: 0, data: null };
+app.get('/api/positions', async (req, res) => {
+  try {
+    if (!capital.configured()) return res.json({ configured: false });
+    if (posCache.data && Date.now() - posCache.at < 3000) return res.json(posCache.data);
+    const snap = await capital.positions();
+    const totalPl = snap.positions.reduce((s, p) => s + (p.pl || 0), 0);
+    const currencies = [...new Set(snap.positions.map((p) => p.currency).filter(Boolean))];
+    const out = {
+      configured: true,
+      env: snap.env,
+      at: snap.at,
+      count: snap.positions.length,
+      totalPl,
+      currency: currencies.length === 1 ? currencies[0] : null,
+      positions: snap.positions,
+    };
+    posCache = { at: Date.now(), data: out };
     res.json(out);
   } catch (e) {
     res.status(500).json({ error: String(e.message || e) });
@@ -189,6 +290,7 @@ app.post('/api/config', async (req, res) => {
     config.newsModel = slug;
     saveConfig();
     if (state.data) state.data.raw.news = await fetchNews(slug); // raw lanes cached — only the LLM pass reruns
+    if (state.goldData) state.goldData.raw.news = await fetchNews(slug, 'gold');
     res.json({ ok: true, newsModel: slug });
   } catch (e) {
     res.status(500).json({ error: String(e.message || e) });
@@ -297,9 +399,103 @@ app.get('/api/dashboard', async (req, res) => {
   }
 });
 
+app.get('/api/gold/dashboard', async (req, res) => {
+  try {
+    const kind = req.query.model === 'forest' ? 'forest' : 'ridge';
+    await loadGoldData();
+    const newsAge = state.goldData.raw.news ? Date.now() - Date.parse(state.goldData.raw.news.fetchedAt) : Infinity;
+    if (newsAge > 35 * 60 * 1000) {
+      try {
+        state.goldData.raw.news = await fetchNews(config.newsModel, 'gold');
+      } catch (e) {
+        console.error('gold news refresh failed:', e.message);
+      }
+    }
+    const [h1, h5, h21, i15, i60] = await Promise.all([
+      goldDailyBundle(kind, 'fwd1'),
+      goldDailyBundle(kind, 'fwd5'),
+      goldDailyBundle(kind, 'fwd21'),
+      goldIntradayBundle('i15', '15m', 400),
+      goldIntradayBundle('i60', '1h', 800),
+    ]);
+    const { ds, raw, intraday, vols, health, builtAt } = state.goldData;
+
+    const lastIdx = ds.dates.length - 1;
+    const kpi = (arr) => ({ value: arr[lastIdx], prev: arr[lastIdx - 1] });
+    const news = raw.news || { items: [], activity: { level: 'QUIET', points: 0 }, lanes: {} };
+
+    const spot15 = raw.i15 ? raw.i15.close[raw.i15.close.length - 1] : null;
+    const price = spot15 != null ? spot15 : ds.gold[lastIdx];
+    const asOf15 = raw.i15 ? raw.i15.dates[raw.i15.dates.length - 1] : null;
+    const asOf60 = raw.i60 ? raw.i60.dates[raw.i60.dates.length - 1] : null;
+
+    const targets = buildTargets({
+      price,
+      asOfDaily: ds.dates[lastIdx],
+      asOf15,
+      asOf60,
+      bundles: { h1, h5, h21, i15, i60 },
+      vols: { bar15: vols.bar15 || 0.002, bar60: vols.bar60 || 0.004, daily: vols.daily },
+      newsLevel: news.activity.level,
+      bandFactor: newsBandFactor(news.activity.level),
+    });
+
+    const tail = 504;
+    const from = Math.max(0, ds.dates.length - tail);
+    const idxRange = [];
+    for (let i = from; i < ds.dates.length; i++) idxRange.push(i);
+
+    const correlations = ds.features.map((f, j) => ({
+      label: f.label,
+      corr1d: pearson(ds.rows.map((r) => r.x[j]), ds.rows.map((r) => r.fwd1)),
+      corr5d: pearson(ds.rows.map((r) => r.x[j]), ds.rows.map((r) => r.fwd5)),
+    }));
+
+    res.json({
+      builtAt,
+      health,
+      price: { value: price, asOf: asOf15 || ds.dates[lastIdx] },
+      news,
+      targets,
+      kpis: {
+        gold: kpi(ds.gold),
+        silver: raw.silver ? kpi(ds.silver) : null,
+        ratio: raw.silver ? kpi(ds.ratio) : null,
+        dxy: kpi(ds.dxy),
+        gvz: raw.gvz ? kpi(ds.gvz) : null,
+      },
+      series: {
+        dates: idxRange.map((i) => ds.dates[i]),
+        gold: idxRange.map((i) => ds.gold[i]),
+        ratio: idxRange.map((i) => ds.ratio[i]),
+        intraday: raw.i15
+          ? { dates: raw.i15.dates.slice(-320), close: raw.i15.close.slice(-320) }
+          : null,
+      },
+      correlations,
+      models: { h1, h5, h21, i15, i60 },
+      sampleInfo: {
+        rows: ds.rows.length,
+        firstDate: ds.rows[0].date,
+        lastDate: ds.rows[ds.rows.length - 1].date,
+        features: ds.features.map((f) => f.label),
+        intradayBars: {
+          m15: intraday.i15 ? intraday.i15.rows.length : 0,
+          h1: intraday.i60 ? intraday.i60.rows.length : 0,
+        },
+        parallelEnabled: Boolean(process.env.PARALLEL_API_KEY),
+      },
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: String(e.message || e) });
+  }
+});
+
 app.post('/api/refresh', async (req, res) => {
   try {
     state.data = null;
+    state.goldData = null;
     await loadData(true);
     res.json({ ok: true });
   } catch (e) {

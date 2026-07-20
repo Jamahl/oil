@@ -38,6 +38,7 @@ First start fetches ~10y daily + 60d of 15m bars + 730d of 1h bars (a few second
 | News — Parallel Search API | `PARALLEL_API_KEY` in `.env` (found in quantedge; ~$0.005/sweep, cached 30 min) | optional — drops out cleanly without the key |
 | News — major-outlet RSS | free, keyless | Guardian oil topic feed, CNBC energy feed, Al Jazeera (topic-filtered), OilPrice, Google News general + `source:bloomberg` / `source:reuters` queries. Last 48h only, freshness-weighted ranking, ≤3 items per source |
 | **News LLM scoring — OpenRouter** | `OPENROUTER_API_KEY` in `.env` (from quantedge) | default model `poolside/laguna-xs-2.1:free` ($0), **configurable in the UI** (news card → slug input → Apply, persisted in `data/config.json`) |
+| **Gold page** (`/gold.html`) | Yahoo `GC=F` (daily 10y + 15m/1h bars), `SI=F`, `^GVZ`; Capital.com `GOLD` live spot | same rig as oil: ridge/forest walk-forward on momentum + vol + DXY + GVZ + gold/silver ratio, gold news lanes (Google News Bloomberg/Reuters/Kitco queries, Guardian gold, Mining.com) with gold tier lists + gold-analyst LLM prompt, same honesty rules |
 
 Headlines are deduped and keyword-scored with the CrudeSignal PRD tier lists (Tier-1: Hormuz, OPEC+ emergency, attack, sanctions, force majeure… = 3pts; Tier-2 = 1pt). The LLM pass (analyst-grade prompt: direction traps like ceasefires and refinery outages, materiality anchored to ">1% Brent move", novelty = new/update/rehash judged from headline ages) adds per-headline direction + materiality + novelty and a one-line market read; materiality-3 items add +3 to the tape score (mat-2 +1), rehash items count 30%. Per the PRD safety rule the keyword layer is never suppressed — LLM down (e.g. free-tier 429) → keyword-only, flagged "AI off" with the reason. Decayed 48h score → tape state: **EVENT ≥ 9, ELEVATED ≥ 4, else QUIET.** Items older than 7 days are dropped (kills evergreen explainers). Reasoning models work: the call sets `reasoning: {enabled: false}` so free reasoners spend tokens on the answer.
 
@@ -71,6 +72,8 @@ lib/model.js          ridge, forest, walk-forward, metrics (incl. cost-aware
                       Sharpe), bucket calibration
 lib/model-worker.js   worker-thread wrapper (training never blocks HTTP)
 public/               vanilla JS + Chart.js (vendored), light/dark tokens
+                      index.html/app.js (oil) · gold.html/gold.js (gold) ·
+                      positions.js (shared Capital.com positions overview)
 scripts/smoke.js      CLI smoke test
 scripts/research.js   research runner: tune trials, one-shot holdout, noise bar
 RESEARCH.md           research protocol: holdout law, kill bar, backlog, results
