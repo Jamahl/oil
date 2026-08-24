@@ -127,7 +127,7 @@
         const form = document.getElementById('loginForm');
         const errorMessage = document.getElementById('errorMessage');
         
-        form.addEventListener('async', async (e) => {
+        form.addEventListener('submit', async (e) => {
             e.preventDefault();
             errorMessage.style.display = 'none';
             
