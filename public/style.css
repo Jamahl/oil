@@ -529,3 +529,46 @@ table.bt td.bad { color: var(--delta-down); }
   .fnkey { flex: 1 1 30%; }
 }
 
+/* ---------- mobile portrait (≤540px) ---------- */
+@media (max-width: 540px) {
+  .term-grid { gap: 4px; padding: 4px; }
+  .cmdbar { gap: 6px; padding: 0 6px; }
+  .cmd-brand { font-size: 10px; padding: 2px 6px; }
+  .cmd-stat, #btn-refresh, #data-ok, #cmd-tape, .cmd-clock .unit { display: none; }
+  .cmd-clock { display: inline; font-size: 10px; }
+  .panel-body { padding: 8px; }
+  .panel-head { padding: 4px 8px; white-space: normal; }
+  .panel-meta { font-size: 8.5px; }
+
+  /* news */
+  #news-list { max-height: 70vh; }
+  .news-item { gap: 5px; padding: 8px 0; }
+  .news-item a { padding: 6px 0; font-size: 11.5px; }
+  .news-score { min-width: 14px; font-size: 9.5px; }
+  .news-meta { font-size: 9px; }
+  .llm-read { padding: 6px 8px; font-size: 10px; }
+
+  /* charts */
+  .chart-box { height: 200px; }
+  .chart-box.short { height: 170px; }
+  .chart-box.shorter { height: 100px; }
+
+  /* targets */
+  .targets-colhead, .target { grid-template-columns: 46px 1fr 1fr; gap: 0 8px; }
+  .target .when { font-size: 9.5px; }
+
+  /* scalp */
+  .scalp-strip { gap: 8px; padding: 6px 8px; font-size: 10px; }
+  .scalp-strip .note { width: 100%; }
+  .scalp-verdict { font-size: 10px; }
+
+  /* bot */
+  .bot-controls { gap: 4px; }
+  .bot-controls .btn.small { font-size: 9px; padding: 3px 6px; }
+  .seg-btn { font-size: 9px; padding: 3px 7px; }
+
+  /* function bar — thumb-sized targets */
+  .fnbar { gap: 3px; padding: 3px; }
+  .fnkey { min-height: 44px; flex: 1 1 45%; font-size: 10px; }
+}
+
