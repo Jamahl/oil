@@ -321,8 +321,9 @@ function renderChrome(d) {
   $('hd-news').textContent = d.instrument === 'brent' ? "What's moving oil" : `What's moving ${lbl.toLowerCase()}`;
   if (d.sourcesLine) $('news-sources').textContent = d.sourcesLine;
   $('card-inventory').hidden = !d.series.inventory; // oil-only card
-  $('inst-brent').classList.toggle('active', d.instrument !== 'btc');
+  $('inst-brent').classList.toggle('active', d.instrument === 'brent');
   $('inst-btc').classList.toggle('active', d.instrument === 'btc');
+  $('inst-gold').classList.toggle('active', d.instrument === 'gold');
   const ctx = $('cmd-ctx');
   if (ctx) ctx.innerHTML = `${(d.fullLabel || lbl).toUpperCase()} CFD &lt;GO&gt;<span class="caret"></span>`;
 }
@@ -726,12 +727,11 @@ pollBot();
 function switchInstrument(id) {
   if (id === instrument) return;
   instrument = id;
-  liveSpot = null;
-  lastData = null;
+  $('inst-brent').classList.toggle('active', id === 'brent');
+  $('inst-btc').classList.toggle('active', id === 'btc');
+  $('inst-gold').classList.toggle('active', id === 'gold');
   botEditing = false;
   botHistory = { open: false, rows: null };
-  $('inst-brent').classList.toggle('active', id !== 'btc');
-  $('inst-btc').classList.toggle('active', id === 'btc');
   destroyCharts();
   load(currentModel); // dashboard + journal
   pollBot();
@@ -739,6 +739,7 @@ function switchInstrument(id) {
 }
 $('inst-brent').addEventListener('click', () => switchInstrument('brent'));
 $('inst-btc').addEventListener('click', () => switchInstrument('btc'));
+$('inst-gold').addEventListener('click', () => switchInstrument('gold'));
 
 $('btn-refresh').addEventListener('click', async () => {
   const btn = $('btn-refresh');
@@ -908,6 +909,7 @@ function scrollToPanel(id) {
 document.addEventListener('keydown', (e) => {
   if (e.key === 'F1') { e.preventDefault(); switchInstrument('brent'); }
   else if (e.key === 'F2') { e.preventDefault(); switchInstrument('btc'); }
+  else if (e.key === 'F3') { e.preventDefault(); switchInstrument('gold'); }
   else if (e.key === 'F6') { e.preventDefault(); setTheme(currentTheme() === 'dark' ? 'light' : 'dark'); }
   else if (e.key === 'F8') { e.preventDefault(); scrollToPanel('news-card'); }
   else if (e.key === 'F9') { e.preventDefault(); scrollToPanel('bot-card'); }
