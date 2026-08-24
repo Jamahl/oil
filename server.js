@@ -12,6 +12,23 @@ const { buildTargets } = require('./lib/targets');
 const capital = require('./lib/capital');
 const journal = require('./lib/journal');
 const { computeSignal } = require('./lib/signal');
+
+// Decay monitor state — component-level auto-mute from the signal-component
+// decay monitor (scripts/component_decay.py).  Persisted in data/decay_state.json;
+// re-read on mtime change.  Default {} = no mutes active.
+const DECAY_STATE_PATH = path.join(__dirname, 'data', 'decay_state.json');
+let decayStateCache = {};
+let decayStateMtime = 0;
+function currentDecayState() {
+  try {
+    const st = fs.statSync(DECAY_STATE_PATH);
+    if (st.mtimeMs !== decayStateMtime) {
+      decayStateCache = JSON.parse(fs.readFileSync(DECAY_STATE_PATH, 'utf8') || '{}');
+      decayStateMtime = st.mtimeMs;
+    }
+  } catch (_) { decayStateCache = {}; }
+  return decayStateCache;
+}
 const { fetchCurve } = require('./lib/curve');
 const bot = require('./lib/bot');
 const { INSTRUMENTS, INSTRUMENT_IDS, resolveId } = require('./lib/instruments');
@@ -19,6 +36,7 @@ const { INSTRUMENTS, INSTRUMENT_IDS, resolveId } = require('./lib/instruments');
 const PORT = process.env.PORT || 4173;
 const app = express();
 app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 
 // ---- session auth: active only when AUTH_PASSCODE is set (the VPS). Local
 // dev without it stays open. Login page + deps came from the deploy agent's
@@ -31,14 +49,18 @@ if (AUTH_PASSCODE) {
   app.set('trust proxy', 1); // behind Caddy/nginx
   app.use(
     session({
+      name: 'oil.sid',
       secret: process.env.SESSION_SECRET || AUTH_PASSCODE,
       resave: false,
       saveUninitialized: false,
-      cookie: { httpOnly: true, sameSite: 'lax', secure: 'auto', maxAge: 7 * 24 * 3600e3 },
+      rolling: true,
+      cookie: { httpOnly: true, sameSite: 'lax', secure: true, maxAge: 7 * 24 * 3600e3 },
     })
   );
   const loginLimiter = rateLimit({ windowMs: 15 * 60e3, max: 20 });
-  app.use('/api/', rateLimit({ windowMs: 15 * 60e3, max: 600 }));
+  // Authed sessions skip the API limit: the dashboard alone polls ~340 req/15min
+  // per tab (price 5s + bot 10s + signal 15s), so two tabs would trip 600.
+  app.use('/api/', rateLimit({ windowMs: 15 * 60e3, max: 600, skip: (req) => Boolean(req.session && req.session.authed) }));
   app.get('/login', loginLimiter, (req, res) => res.sendFile(path.join(__dirname, 'public', 'login.html')));
   app.post('/login', loginLimiter, (req, res) => {
     const b = req.body || {};
@@ -101,6 +123,12 @@ const FEEDS = {
     { id: 'i15', label: 'Bitcoin 15m bars', fn: () => yahooSeries(INSTRUMENTS.btc.yahooIntraday, { range: '60d', interval: '15m', ttlMs: 30 * 60 * 1000 }), required: false, staleDays: 2 },
     { id: 'i60', label: 'Bitcoin 1h bars', fn: () => yahooSeries(INSTRUMENTS.btc.yahooIntraday, { range: '730d', interval: '1h', ttlMs: 2 * 60 * 60 * 1000 }), required: false, staleDays: 2 },
     { id: 'news', label: 'News', fn: () => fetchNews(config.newsModel, INSTRUMENTS.btc.newsPack), required: false, staleDays: 2 },
+  ],
+  gold: [
+    { id: 'daily', label: 'Gold daily', fn: () => yahooDaily(INSTRUMENTS.gold.yahooDaily), required: true, staleDays: 4 },
+    { id: 'i15', label: 'Gold 15m bars', fn: () => yahooSeries(INSTRUMENTS.gold.yahooIntraday, { range: '60d', interval: '15m', ttlMs: 30 * 60 * 1000 }), required: false, staleDays: 2 },
+    { id: 'i60', label: 'Gold 1h bars', fn: () => yahooSeries(INSTRUMENTS.gold.yahooIntraday, { range: '730d', interval: '1h', ttlMs: 2 * 60 * 60 * 1000 }), required: false, staleDays: 2 },
+    { id: 'news', label: 'News', fn: () => fetchNews(config.newsModel, INSTRUMENTS.gold.newsPack), required: false, staleDays: 2 },
   ],
 };
 
@@ -288,6 +316,7 @@ async function currentSignal(instrument = 'brent') {
     livePrice: live.mid,
     prevPriceHourAgo: bars.length > 4 ? bars[bars.length - 5] : null,
     journalStats: journalStatsCaches[instrument],
+    decayState: currentDecayState(),
     curve: INSTRUMENTS[instrument].features === 'oil' ? raw.curve || null : null,
   });
 }
@@ -633,7 +662,7 @@ app.get('/api/journal/insight', async (req, res) => {
   }
 });
 
-const srv = app.listen(PORT, () => {
+const srv = app.listen(PORT, '127.0.0.1', () => {
   console.log(`CrudeSignal Lab -> http://localhost:${PORT}`);
   // Hydrate each bot's open working-set from the shared DB ledger (file fallback
   // is handled inside init); trade history then travels between machines.
@@ -653,6 +682,13 @@ const srv = app.listen(PORT, () => {
       console.log('btc ridge + intraday models warm');
       journalTick('btc');
       setInterval(() => journalTick('btc'), 5 * 60 * 1000);
+    })
+    .then(() => loadData('gold'))
+    .then(() => coreBundles('gold', 'ridge'))
+    .then(() => {
+      console.log('gold ridge + intraday models warm');
+      journalTick('gold');
+      setInterval(() => journalTick('gold'), 5 * 60 * 1000);
     })
     .catch((e) => console.error('warmup failed:', e.message));
 });
